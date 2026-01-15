@@ -50,21 +50,21 @@ This document provides a **comprehensive, phased development plan** to transform
             │         HTTP/REST API + WebSocket           │
 ┌───────────▼───────────────────────────────────────────────────────────┐
 │                    Node.js Backend API (Express)                      │
-│  ┌──────────────────────────────────────────────────────────────┐   │
-│  │  API Gateway Layer                                            │   │
-│  │  - Authentication & Authorization (JWT, RBAC)                │   │
-│  │  - Rate Limiting & Throttling                                 │   │
-│  │  - Request Validation & Sanitization                         │   │
-│  │  - API Versioning (v1, v2)                                    │   │
-│  └──────────────────────────────────────────────────────────────┘   │
-│  ┌──────────────────────────────────────────────────────────────┐   │
+│  ┌──────────────────────────────────────────────────────────────  ┐   │
+│  │  API Gateway Layer                                             │   │
+│  │  - Authentication & Authorization (JWT, RBAC)                  │   │
+│  │  - Rate Limiting & Throttling                                  │   │
+│  │  - Request Validation & Sanitization                           │   │
+│  │  - API Versioning (v1, v2)                                     │   │
+│  └──────────────────────────────────────────────────────────────  ┘   │
+│  ┌──────────────────────────────────────────────────────────────  ┐   │
 │  │  Business Logic Layer                                         │   │
 │  │  - Threat Detection Orchestration                             │   │
 │  │  - Incident Management                                        │   │
 │  │  - Alerting & Notification                                    │   │
 │  │  - Analytics & Reporting                                      │   │
 │  │  - User Management                                            │   │
-│  └──────────────────────────────────────────────────────────────┘   │
+│  └──────────────────────────────────────────────────────────────  ┘   │
 │  ┌──────────────────────────────────────────────────────────────┐   │
 │  │  Integration Layer                                           │   │
 │  │  - ML Service Client (Python FastAPI)                        │   │
@@ -80,20 +80,20 @@ This document provides a **comprehensive, phased development plan** to transform
     └────────────────┘  └────────────────┘  └────────────────┘
 
 ┌─────────────────────────────────────────────────────────────────────┐
-│                    Python ML Service (FastAPI)                       │
+│                    Python ML Service (FastAPI)                      │
 │  ┌──────────────────────────────────────────────────────────────┐   │
-│  │  ML Inference Layer                                         │   │
-│  │  - Text Classification (Spam, Phishing, Social Engineering)│   │
+│  │  ML Inference Layer                                          │   │
+│  │  - Text Classification (Spam, Phishing, Social Engineering)  │   │
 │  │  - Voice Analysis (Transcription, Emotion, Biometrics)       │   │
-│  │  - Network Traffic Analysis                                 │   │
-│  │  - File/Malware Detection                                   │   │
-│  │  - Behavioral Anomaly Detection                            │   │
+│  │  - Network Traffic Analysis                                  │   │
+│  │  - File/Malware Detection                                    │   │
+│  │  - Behavioral Anomaly Detection                              │   │
 │  └──────────────────────────────────────────────────────────────┘   │
 │  ┌──────────────────────────────────────────────────────────────┐   │
-│  │  ML Models                                                    │   │
-│  │  - Traditional ML (scikit-learn)                            │   │
+│  │  ML Models                                                   │   │
+│  │  - Traditional ML (scikit-learn)                             │   │
 │  │  - Deep Learning (PyTorch/TensorFlow)                        │   │
-│  │  - Transformers (BERT, RoBERTa, DistilBERT)                 │   │
+│  │  - Transformers (BERT, RoBERTa, DistilBERT)                  │   │
 │  │  - Ensemble Models                                           │   │
 │  └──────────────────────────────────────────────────────────────┘   │
 │  ┌──────────────────────────────────────────────────────────────┐   │
@@ -106,19 +106,19 @@ This document provides a **comprehensive, phased development plan** to transform
 └─────────────────────────────────────────────────────────────────────┘
 
 ┌─────────────────────────────────────────────────────────────────────┐
-│                    Threat Detection Modules                          │
-│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐            │
-│  │   Network    │  │     File      │  │  Behavioral  │            │
-│  │   Monitor    │  │   Analyzer    │  │   Analyzer    │            │
-│  │              │  │               │  │              │            │
-│  │ - Packet     │  │ - Static      │  │ - User       │            │
-│  │   Capture    │  │   Analysis    │  │   Behavior   │            │
-│  │ - Flow       │  │ - Dynamic     │  │ - System     │            │
-│  │   Analysis   │  │   Analysis    │  │   Behavior   │            │
-│  │ - IDS/IPS    │  │ - Sandboxing   │  │ - Anomaly    │            │
-│  │ - DDoS       │  │ - Hash Check   │  │   Detection  │            │
-│  │   Detection  │  │ - YARA Rules  │  │ - Risk Score │            │
-│  └──────────────┘  └──────────────┘  └──────────────┘            │
+│                    Threat Detection Modules                         │
+│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐               │
+│  │   Network    │  │     File      │  │  Behavioral  │              │
+│  │   Monitor    │  │   Analyzer    │  │   Analyzer   │              │
+│  │              │  │               │  │              │              │
+│  │ - Packet     │  │ - Static      │  │ - User       │              │
+│  │   Capture    │  │   Analysis    │  │   Behavior   │              │
+│  │ - Flow       │  │ - Dynamic     │  │ - System     │              │
+│  │   Analysis   │  │   Analysis    │  │   Behavior   │              │
+│  │ - IDS/IPS    │  │ - Sandboxing   │  │ - Anomaly    │             │
+│  │ - DDoS       │  │ - Hash Check   │  │   Detection  │             │
+│  │   Detection  │  │ - YARA Rules  │  │ - Risk Score │              │
+│  └──────────────┘  └──────────────┘  └──────────────┘               │
 └─────────────────────────────────────────────────────────────────────┘
 ```
 
