@@ -1,0 +1,14 @@
+[0;32m[2025-12-29 14:46:31][0m Started at: Mon Dec 29 14:46:31 +07 2025
+[0;32m[2025-12-29 14:46:31][0m Root directory: /opt/school-project/ai-anti-spam-shield
+[0;34m[INFO][0m Verifying plan files...
+[0;32m[2025-12-29 14:46:31][0m ✓ Master plan: plan.md
+[0;32m[2025-12-29 14:46:31][0m ✓ Backend plan: ai-anti-spam-shield-backend/plan.md
+[0;32m[2025-12-29 14:46:31][0m ✓ AI service plan: ai-anti-spam-shield-service-model/plan.md
+[0;32m[2025-12-29 14:46:31][0m ✓ Mobile plan: ai_anti_spam_shield_mobile/plan.md
+[0;34m[INFO][0m Checking development tools...
+[0;32m[2025-12-29 14:46:31][0m ✓ Node.js: v23.6.1
+[0;32m[2025-12-29 14:46:31][0m ✓ Python: Python 3.14.0
+[0;32m[2025-12-29 14:46:32][0m ✓ Flutter: Flutter 3.35.7 • channel stable • https://github.com/flutter/flutter.git
+[1;33m[WARNING][0m Docker not found (optional)
+[1;33m[WARNING][0m PostgreSQL not found
+[0;32m[SUCCESS][0m Prerequisites check completed

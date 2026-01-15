@@ -1,0 +1,49 @@
+{
+  "name": "AI Anti-Spam Shield Auto-Implementation",
+  "version": "1.0.0",
+  "description": "Automated implementation commands for AI Anti-Spam Shield",
+  "commands": [
+    {
+      "name": "auto-implement-phase1",
+      "description": "Automatically implement Phase 1: Foundation & Infrastructure",
+      "command": "./auto-implement.sh 1",
+      "cwd": "${workspaceFolder}"
+    },
+    {
+      "name": "auto-implement-phase2",
+      "description": "Automatically implement Phase 2: Text & Voice Detection",
+      "command": "./auto-implement.sh 2",
+      "cwd": "${workspaceFolder}"
+    },
+    {
+      "name": "auto-implement-phase3",
+      "description": "Automatically implement Phase 3: Network Detection",
+      "command": "./auto-implement.sh 3",
+      "cwd": "${workspaceFolder}"
+    },
+    {
+      "name": "auto-implement-phase4",
+      "description": "Automatically implement Phase 4: File & Malware Detection",
+      "command": "./auto-implement.sh 4",
+      "cwd": "${workspaceFolder}"
+    },
+    {
+      "name": "auto-implement-all",
+      "description": "Automatically implement all phases",
+      "command": "./auto-implement.sh all",
+      "cwd": "${workspaceFolder}"
+    },
+    {
+      "name": "auto-check-prerequisites",
+      "description": "Check prerequisites for implementation",
+      "command": "./auto-implement.sh check",
+      "cwd": "${workspaceFolder}"
+    },
+    {
+      "name": "auto-backup",
+      "description": "Create backup of current code",
+      "command": "./auto-implement.sh backup",
+      "cwd": "${workspaceFolder}"
+    }
+  ]
+}

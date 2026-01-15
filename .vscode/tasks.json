@@ -1,0 +1,156 @@
+{
+  "tasks": [
+    {
+      "label": "🚀 Auto-Implement: All Phases",
+      "type": "shell",
+      "command": "./auto-implement.sh all",
+      "group": {
+        "kind": "build",
+        "isDefault": true
+      },
+      "presentation": {
+        "reveal": "always",
+        "panel": "new",
+        "clear": true,
+        "showReuseMessage": false
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "🏗️ Auto-Implement: Phase 1 (Infrastructure)",
+      "type": "shell",
+      "command": "./auto-implement.sh 1",
+      "group": "build",
+      "presentation": {
+        "reveal": "always",
+        "panel": "new"
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "📝 Auto-Implement: Phase 2 (Text/Voice)",
+      "type": "shell",
+      "command": "./auto-implement.sh 2",
+      "group": "build",
+      "presentation": {
+        "reveal": "always",
+        "panel": "new"
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "🌐 Auto-Implement: Phase 3 (Network)",
+      "type": "shell",
+      "command": "./auto-implement.sh 3",
+      "group": "build",
+      "presentation": {
+        "reveal": "always",
+        "panel": "new"
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "📁 Auto-Implement: Phase 4 (File/Malware)",
+      "type": "shell",
+      "command": "./auto-implement.sh 4",
+      "group": "build",
+      "presentation": {
+        "reveal": "always",
+        "panel": "new"
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "✅ Check Prerequisites",
+      "type": "shell",
+      "command": "./auto-implement.sh check",
+      "group": "test",
+      "presentation": {
+        "reveal": "always",
+        "panel": "new"
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "💾 Create Backup",
+      "type": "shell",
+      "command": "./auto-implement.sh backup",
+      "group": "none",
+      "presentation": {
+        "reveal": "always",
+        "panel": "new"
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "📊 View Implementation Log",
+      "type": "shell",
+      "command": "tail -f implementation.log",
+      "group": "none",
+      "presentation": {
+        "reveal": "always",
+        "panel": "new"
+      },
+      "problemMatcher": [],
+      "isBackground": true
+    },
+    {
+      "label": "🔍 Search Errors in Log",
+      "type": "shell",
+      "command": "grep -i error implementation.log",
+      "group": "none",
+      "presentation": {
+        "reveal": "always",
+        "panel": "new"
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "📦 Install All Dependencies",
+      "type": "shell",
+      "command": "cd ai-anti-spam-shield-backend && npm install && cd ../ai-anti-spam-shield-service-model && pip install -r app/requirements.txt && cd ../ai_anti_spam_shield_mobile && flutter pub get",
+      "group": "none",
+      "presentation": {
+        "reveal": "always",
+        "panel": "new"
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "🗄️ Apply Database Migrations",
+      "type": "shell",
+      "command": "cd ai-anti-spam-shield-backend && npx prisma migrate dev --name enhanced_schema && npx prisma generate",
+      "group": "none",
+      "presentation": {
+        "reveal": "always",
+        "panel": "new"
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "🧪 Test AI Service",
+      "type": "shell",
+      "command": "cd ai-anti-spam-shield-service-model/app && python main.py",
+      "group": "test",
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated"
+      },
+      "isBackground": true,
+      "problemMatcher": []
+    },
+    {
+      "label": "🚀 Test Backend",
+      "type": "shell",
+      "command": "cd ai-anti-spam-shield-backend && npm run dev",
+      "group": "test",
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated"
+      },
+      "isBackground": true,
+      "problemMatcher": []
+    }
+  ],
+  "version": "2.0.0"
+}
