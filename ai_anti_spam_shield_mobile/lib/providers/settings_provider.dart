@@ -32,12 +32,12 @@ class AppSettingsState {
 class AppSettingsNotifier extends Notifier<AppSettingsState> {
   @override
   AppSettingsState build() {
-    _loadSettings();
-    return const AppSettingsState();
+    // Load settings after initialization
+    Future.microtask(() => _loadSettings());
+    return const AppSettingsState(isLoading: true);
   }
 
   Future<void> _loadSettings() async {
-    state = state.copyWith(isLoading: true);
     try {
       final prefs = await SharedPreferences.getInstance();
 
