@@ -1,5 +1,6 @@
 /// Phishing Detection Result Models
 /// Contains data classes for phishing detection API responses
+library;
 
 /// URL analysis result from phishing detection
 class URLAnalysis {
