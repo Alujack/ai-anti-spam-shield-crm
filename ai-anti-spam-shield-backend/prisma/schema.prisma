@@ -1,0 +1,90 @@
+// This is your Prisma schema file
+// Learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        String   @id @default(uuid())
+  email     String   @unique
+  password  String
+  name      String?
+  phone     String?
+  role      String   @default("USER")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  scanHistories         ScanHistory[]
+  reports               Report[]
+  phishingScanHistories PhishingScanHistory[]
+
+  @@map("users")
+}
+
+model ScanHistory {
+  id         String   @id @default(uuid())
+  userId     String
+  message    String
+  isSpam     Boolean
+  confidence Float
+  prediction String
+  details    String?
+  scannedAt  DateTime @default(now())
+
+  // Relations
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("scan_histories")
+  @@index([userId])
+  @@index([scannedAt])
+}
+
+model Report {
+  id          String   @id @default(uuid())
+  userId      String
+  messageText String
+  reportType  String
+  description String?
+  status      String   @default("PENDING")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("reports")
+  @@index([userId])
+  @@index([status])
+  @@index([createdAt])
+}
+
+model PhishingScanHistory {
+  id            String   @id @default(uuid())
+  userId        String
+  inputText     String
+  inputUrl      String?
+  isPhishing    Boolean
+  confidence    Float
+  phishingType  String   // EMAIL, SMS, URL, NONE
+  threatLevel   String   // CRITICAL, HIGH, MEDIUM, LOW, NONE
+  indicators    String   // JSON array of detected indicators
+  urlsAnalyzed  String?  // JSON array of URL analysis results
+  brandDetected String?  // Detected brand impersonation
+  scannedAt     DateTime @default(now())
+
+  // Relations
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("phishing_scan_histories")
+  @@index([userId])
+  @@index([scannedAt])
+  @@index([phishingType])
+  @@index([threatLevel])
+}
