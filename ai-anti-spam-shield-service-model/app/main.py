@@ -8,10 +8,11 @@ import os
 import speech_recognition as sr
 import tempfile
 import io
-import logging
-
-# Import predictor
 from model.predictor import SpamPredictor
+from core.logging_config import setup_logging
+
+# Initialize logger
+logger = setup_logging('ai-anti-spam-shield.model-service')
 
 # Import phishing detector
 try:
@@ -19,11 +20,7 @@ try:
     HAS_PHISHING_DETECTOR = True
 except ImportError:
     HAS_PHISHING_DETECTOR = False
-    logging.warning("PhishingDetector not available")
-
-# Configure logging
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
+    logger.warning("PhishingDetector not available")
 
 # Initialize FastAPI app
 app = FastAPI(

@@ -1,0 +1,15 @@
+{
+    "keep": {
+        "days": true,
+        "amount": 14
+    },
+    "auditLog": "/opt/school-project/ai-anti-spam-shield/logs/backend/.cb723c86a2eeb0960cb1fe5a9b93a6714ea5bac1-audit.json",
+    "files": [
+        {
+            "date": 1768741422305,
+            "name": "/opt/school-project/ai-anti-spam-shield/logs/backend/combined-2026-01-18.log",
+            "hash": "4ef87a90494fc888902d478326f6b66825ad0db17560838ef3042f6753beaa7b"
+        }
+    ],
+    "hashType": "sha256"
+}

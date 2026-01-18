@@ -7,6 +7,7 @@ const swaggerSpec = require('./config/swagger');
 const config = require('./config');
 const routes = require('./routes');
 const { errorHandler, notFoundHandler } = require('./middlewares/errorHandler');
+const logger = require('./utils/logger');
 
 const app = express();
 
@@ -20,9 +21,12 @@ app.use(cors(config.cors));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// Logging middleware
+// Logging middleware - use Winston HTTP logger for file persistence
 if (config.env !== 'test') {
-  app.use(morgan('combined'));
+  // Morgan for detailed Apache-style logs to console
+  app.use(morgan('combined', { stream: logger.stream }));
+  // Custom HTTP logger for structured logging
+  app.use(logger.httpLogger);
 }
 
 // Swagger documentation
@@ -57,7 +61,7 @@ app.use(errorHandler);
 // Start server
 const PORT = config.port || 3000;
 app.listen(PORT, () => {
-  console.log(`🚀 Server running on port ${PORT} in ${config.env} mode`);
+  logger.info(`Server running on port ${PORT}`, { mode: config.env, port: PORT });
 });
 
 module.exports = app;

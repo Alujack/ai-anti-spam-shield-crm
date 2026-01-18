@@ -1,0 +1,12 @@
+# Ignore all log files
+*.log
+*.log.*
+
+# Ignore archives
+archives/
+
+# Keep the directory structure
+!.gitignore
+!backend/.gitkeep
+!model-service/.gitkeep
+!combined/.gitkeep
