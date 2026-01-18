@@ -8,6 +8,11 @@ import 'screens/home/home_screen.dart';
 import 'screens/result/result_screen.dart';
 import 'screens/history/history_screen.dart';
 import 'screens/settings/settings_screen.dart';
+import 'screens/phishing/phishing_scanner_screen.dart';
+import 'screens/phishing/phishing_result_screen.dart';
+import 'screens/report/create_report_screen.dart';
+import 'screens/report/my_reports_screen.dart';
+import 'screens/dashboard/dashboard_screen.dart';
 import 'providers/auth_provider.dart';
 import 'providers/settings_provider.dart';
 
@@ -40,6 +45,11 @@ class MyApp extends ConsumerWidget {
         '/result': (context) => const ResultScreen(),
         '/history': (context) => const HistoryScreen(),
         '/settings': (context) => const SettingsScreen(),
+        '/phishing-scanner': (context) => const PhishingScannerScreen(),
+        '/phishing-result': (context) => const PhishingResultScreen(),
+        '/create-report': (context) => const CreateReportScreen(),
+        '/my-reports': (context) => const MyReportsScreen(),
+        '/dashboard': (context) => const DashboardScreen(),
       },
     );
   }

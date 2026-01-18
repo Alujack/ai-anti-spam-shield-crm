@@ -8,8 +8,9 @@ import 'dart:io';
 import '../../providers/scan_provider.dart';
 import '../../providers/auth_provider.dart';
 import '../../widgets/custom_button.dart';
+import '../../widgets/animations/waveform_visualizer.dart';
 import '../../utils/colors.dart';
-import '../result/result_screen.dart';
+import '../scan/scanning_screen.dart';
 
 class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({super.key});
@@ -37,11 +38,42 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   }
 
   Future<bool> _checkMicrophonePermission() async {
-    final status = await Permission.microphone.status;
-    if (status.isDenied) {
-      final result = await Permission.microphone.request();
-      return result.isGranted;
+    var status = await Permission.microphone.status;
+
+    // If permanently denied, prompt user to open settings
+    if (status.isPermanentlyDenied) {
+      if (mounted) {
+        final shouldOpenSettings = await showDialog<bool>(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: const Text('Microphone Permission Required'),
+            content: const Text(
+              'Microphone access was denied. Please enable it in Settings to use voice scanning.',
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context, false),
+                child: const Text('Cancel'),
+              ),
+              TextButton(
+                onPressed: () => Navigator.pop(context, true),
+                child: const Text('Open Settings'),
+              ),
+            ],
+          ),
+        );
+        if (shouldOpenSettings == true) {
+          await openAppSettings();
+        }
+      }
+      return false;
     }
+
+    // If denied (not permanently), request permission
+    if (status.isDenied) {
+      status = await Permission.microphone.request();
+    }
+
     return status.isGranted;
   }
 
@@ -192,31 +224,16 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   }
 
   Future<void> _scanVoiceMessage(String audioPath) async {
-    try {
-      await ref.read(scanProvider.notifier).scanVoice(audioPath);
-
-      // Clean up the audio file
-      try {
-        File(audioPath).deleteSync();
-      } catch (_) {}
-
-      if (mounted) {
-        Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (context) => const ResultScreen(),
+    if (mounted) {
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => ScanningScreen(
+            audioPath: audioPath,
+            isVoiceScan: true,
           ),
-        );
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error scanning voice: ${e.toString()}'),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
+        ),
+      );
     }
   }
 
@@ -231,26 +248,16 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       return;
     }
 
-    try {
-      await ref.read(scanProvider.notifier).scanText(_messageController.text);
-      
-      if (mounted) {
-        Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (context) => const ResultScreen(),
+    if (mounted) {
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => ScanningScreen(
+            textToScan: _messageController.text,
+            isVoiceScan: false,
           ),
-        );
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error: ${e.toString()}'),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
+        ),
+      );
     }
   }
 
@@ -287,13 +294,18 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           ),
         ],
       ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(24.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            // Welcome Section
-            FadeInDown(
+      body: GestureDetector(
+        onTap: () {
+          // Dismiss keyboard when tapping outside
+          FocusScope.of(context).unfocus();
+        },
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(24.0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              // Welcome Section
+              FadeInDown(
               duration: const Duration(milliseconds: 600),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -318,44 +330,61 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               ),
             ),
 
-            const SizedBox(height: 32),
+            const SizedBox(height: 24),
 
-            // Info Card
+            // Quick Actions Grid
             FadeInUp(
               duration: const Duration(milliseconds: 600),
-              child: Container(
-                padding: const EdgeInsets.all(20),
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    colors: [
-                      AppColors.primary.withOpacity(isDark ? 0.2 : 0.1),
-                      AppColors.accent.withOpacity(isDark ? 0.2 : 0.1),
-                    ],
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Quick Actions',
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                      color: isDark ? AppColors.darkTextPrimary : AppColors.textPrimary,
+                    ),
                   ),
-                  borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: AppColors.primary.withOpacity(0.3)),
-                ),
-                child: Row(
-                  children: [
-                    const Icon(Icons.shield, color: AppColors.primary, size: 40),
-                    const SizedBox(width: 16),
-                    Expanded(
-                      child: Text(
-                        'AI-powered protection against scams, phishing, and spam',
-                        style: TextStyle(
-                          fontSize: 14,
-                          color: isDark ? AppColors.darkTextSecondary : AppColors.textSecondary,
+                  const SizedBox(height: 12),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: _buildQuickActionCard(
+                          icon: Icons.phishing,
+                          label: 'Phishing\nScanner',
+                          color: AppColors.danger,
+                          isDark: isDark,
+                          onTap: () => Navigator.pushNamed(context, '/phishing-scanner'),
                         ),
                       ),
-                    ),
-                  ],
-                ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: _buildQuickActionCard(
+                          icon: Icons.analytics,
+                          label: 'Dashboard',
+                          color: AppColors.primary,
+                          isDark: isDark,
+                          onTap: () => Navigator.pushNamed(context, '/dashboard'),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: _buildQuickActionCard(
+                          icon: Icons.flag,
+                          label: 'Report\nThreat',
+                          color: AppColors.warning,
+                          isDark: isDark,
+                          onTap: () => Navigator.pushNamed(context, '/my-reports'),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
               ),
             ),
 
-            const SizedBox(height: 32),
+            const SizedBox(height: 24),
 
             // Message Input Section
             FadeInUp(
@@ -492,7 +521,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                 ),
               ),
             ),
-          ],
+            ],
+          ),
         ),
       ),
     );
@@ -500,54 +530,129 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 
   Widget _buildRecordingButton() {
     return Container(
-      padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+      padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         color: AppColors.danger.withOpacity(0.1),
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(16),
         border: Border.all(color: AppColors.danger, width: 2),
       ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.center,
+      child: Column(
         children: [
-          // Animated recording indicator
-          TweenAnimationBuilder<double>(
-            tween: Tween(begin: 0.5, end: 1.0),
-            duration: const Duration(milliseconds: 500),
-            builder: (context, value, child) {
-              return Container(
-                width: 12,
-                height: 12,
-                decoration: BoxDecoration(
-                  color: AppColors.danger.withOpacity(value),
-                  shape: BoxShape.circle,
+          // Waveform Visualizer
+          WaveformVisualizer(
+            isRecording: _isRecording,
+            activeColor: AppColors.danger,
+            barCount: 24,
+            height: 50,
+            barWidth: 3,
+            barSpacing: 4,
+          ),
+          const SizedBox(height: 16),
+          // Recording info row
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              // Pulsing recording indicator
+              TweenAnimationBuilder<double>(
+                tween: Tween(begin: 0.5, end: 1.0),
+                duration: const Duration(milliseconds: 600),
+                builder: (context, value, child) {
+                  return Container(
+                    width: 12,
+                    height: 12,
+                    decoration: BoxDecoration(
+                      color: AppColors.danger.withValues(alpha: value),
+                      shape: BoxShape.circle,
+                      boxShadow: [
+                        BoxShadow(
+                          color: AppColors.danger.withValues(alpha: value * 0.5),
+                          blurRadius: 8,
+                          spreadRadius: 2,
+                        ),
+                      ],
+                    ),
+                  );
+                },
+              ),
+              const SizedBox(width: 12),
+              Text(
+                'Recording... ${_formatDuration(_recordingDuration)}',
+                style: const TextStyle(
+                  color: AppColors.danger,
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
                 ),
-              );
-            },
+              ),
+            ],
           ),
-          const SizedBox(width: 12),
-          Text(
-            'Recording... ${_formatDuration(_recordingDuration)}',
-            style: const TextStyle(
-              color: AppColors.danger,
-              fontSize: 16,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-          const Spacer(),
-          ElevatedButton.icon(
-            onPressed: _stopRecording,
-            icon: const Icon(Icons.stop, size: 18),
-            label: const Text('Stop'),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppColors.danger,
-              foregroundColor: Colors.white,
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(8),
+          const SizedBox(height: 16),
+          // Stop button
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton.icon(
+              onPressed: _stopRecording,
+              icon: const Icon(Icons.stop, size: 20),
+              label: const Text('Stop Recording', style: TextStyle(fontSize: 16)),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.danger,
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(vertical: 14),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
               ),
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildQuickActionCard({
+    required IconData icon,
+    required String label,
+    required Color color,
+    required bool isDark,
+    required VoidCallback onTap,
+  }) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 8),
+        decoration: BoxDecoration(
+          color: isDark ? AppColors.darkCard : Colors.white,
+          borderRadius: BorderRadius.circular(12),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.05),
+              blurRadius: 8,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: color.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Icon(icon, color: color, size: 24),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              label,
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+                color: isDark ? AppColors.darkTextPrimary : AppColors.textPrimary,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

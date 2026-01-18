@@ -40,15 +40,15 @@ cd "$SERVICE_DIR/app" || {
     exit 1
 }
 
-# Check if model files exist
-MODEL_DIR="$SERVICE_DIR/app/model/model_files"
-if [ ! -d "$MODEL_DIR" ] || [ -z "$(ls -A $MODEL_DIR 2>/dev/null)" ]; then
-    echo -e "${YELLOW}Warning: Model files not found. You may need to train the model first.${NC}"
-    echo "To train the model, run:"
-    echo "  cd $SERVICE_DIR"
-    echo "  source $VENV_PATH/bin/activate"
-    echo "  python datasets/prepare_data.py"
-    echo "  python app/model/train.py"
+# Check if model files exist, train if not
+MODEL_FILE="$SERVICE_DIR/app/model/spam_classifier.pkl"
+if [ ! -f "$MODEL_FILE" ]; then
+    echo -e "${YELLOW}Model files not found. Training unified model with Hugging Face datasets...${NC}"
+    echo "This will download and train with:"
+    echo "  - Deysi/spam-detection-dataset (SMS spam)"
+    echo "  - BothBosu/scam-dialogue (Voice call scams)"
+    echo ""
+    python model/train.py --unified
     echo ""
 fi
 
@@ -66,5 +66,5 @@ echo "API Docs: http://localhost:$PORT/docs"
 echo "Health Check: http://localhost:$PORT/health"
 echo "=========================================="
 
-# Start uvicorn server
-uvicorn main:app --host $HOST --port $PORT --reload
+# Start the server
+python main.py

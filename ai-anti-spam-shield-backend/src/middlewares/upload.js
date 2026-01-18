@@ -8,12 +8,17 @@ const storage = multer.memoryStorage();
 const fileFilter = (req, file, cb) => {
   const allowedMimes = [
     'audio/wav',
+    'audio/x-wav',
     'audio/mpeg',
     'audio/mp3',
     'audio/ogg',
     'audio/flac',
-    'audio/x-wav',
-    'audio/webm'
+    'audio/webm',
+    // M4A/AAC formats (used by iOS and Android for voice recording)
+    'audio/mp4',
+    'audio/m4a',
+    'audio/x-m4a',
+    'audio/aac'
   ];
 
   if (allowedMimes.includes(file.mimetype)) {

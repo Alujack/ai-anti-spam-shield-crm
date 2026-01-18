@@ -1,10 +1,23 @@
 class AppConstants {
+  // ============================================
+  // DEMO MODE CONFIGURATION
+  // ============================================
+  // Set to true to use mock data without server connection
+  // Set to false to connect to the real server
+  static const bool demoMode = true;
+
+  // Demo account credentials
+  static const String demoEmail = 'test@gmail.com';
+  static const String demoPassword = '12345678';
+
+  // ============================================
   // API Configuration
-  static const String baseUrl = 'http://192.168.1.27:3000/api/v1';
+  // ============================================
+  static const String baseUrl = 'http://192.168.1.29:3000/api/v1';
   // For Android Emulator, use: 'http://10.0.2.2:3000/api/v1'
   // For iOS Simulator, use: 'http://localhost:3000/api/v1'
   // For physical device, use your computer's IP: 'http://192.168.x.x:3000/api/v1'
-  
+
   static const int timeout = 30000; // 30 seconds
 
   // Storage Keys
@@ -21,5 +34,10 @@ class AppConstants {
   static const String historyRoute = '/history';
   static const String resultRoute = '/result';
   static const String settingsRoute = '/settings';
+  static const String phishingScannerRoute = '/phishing-scanner';
+  static const String phishingResultRoute = '/phishing-result';
+  static const String createReportRoute = '/create-report';
+  static const String myReportsRoute = '/my-reports';
+  static const String dashboardRoute = '/dashboard';
 }
 

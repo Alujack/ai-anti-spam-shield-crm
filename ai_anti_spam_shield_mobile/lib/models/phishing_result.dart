@@ -19,7 +19,7 @@ class URLAnalysis {
   factory URLAnalysis.fromJson(Map<String, dynamic> json) {
     return URLAnalysis(
       url: json['url'] ?? '',
-      isSuspicious: json['is_suspicious'] ?? false,
+      isSuspicious: json['isSuspicious'] ?? json['is_suspicious'] ?? false,
       score: (json['score'] ?? 0).toDouble(),
       reasons: List<String>.from(json['reasons'] ?? []),
     );
@@ -51,7 +51,7 @@ class BrandImpersonation {
     return BrandImpersonation(
       detected: json['detected'] ?? false,
       brand: json['brand'],
-      similarityScore: (json['similarity_score'] ?? 0).toDouble(),
+      similarityScore: (json['similarityScore'] ?? json['similarity_score'] ?? json['confidence'] ?? 0).toDouble(),
     );
   }
 
@@ -132,9 +132,13 @@ extension PhishingTypeExtension on PhishingType {
       case 'EMAIL':
         return PhishingType.email;
       case 'SMS':
+      case 'SMISHING':
         return PhishingType.sms;
       case 'URL':
         return PhishingType.url;
+      case 'CREDENTIAL_HARVEST':
+      case 'CREDENTIAL-HARVEST':
+        return PhishingType.email; // Credential harvesting is typically email-based
       default:
         return PhishingType.none;
     }

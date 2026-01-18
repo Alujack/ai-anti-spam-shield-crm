@@ -4,6 +4,9 @@ import 'package:animate_do/animate_do.dart';
 import '../../providers/scan_provider.dart';
 import '../../utils/colors.dart';
 import '../../widgets/custom_button.dart';
+import '../../widgets/animations/success_checkmark.dart';
+import '../../widgets/animations/threat_alert_animation.dart';
+import '../../widgets/animations/progress_ring.dart';
 
 class ResultScreen extends ConsumerWidget {
   const ResultScreen({super.key});
@@ -32,7 +35,6 @@ class ResultScreen extends ConsumerWidget {
 
     final result = scanState.result!;
     final isSpam = result.isSpam;
-    final confidence = (result.confidence * 100).toStringAsFixed(1);
 
     return Scaffold(
       backgroundColor: isDark ? AppColors.darkBackground : AppColors.background,
@@ -50,7 +52,7 @@ class ResultScreen extends ConsumerWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            // Result Icon and Status
+            // Result Icon and Status with Animations
             FadeInDown(
               duration: const Duration(milliseconds: 600),
               child: Container(
@@ -58,8 +60,8 @@ class ResultScreen extends ConsumerWidget {
                 decoration: BoxDecoration(
                   gradient: LinearGradient(
                     colors: isSpam
-                        ? [AppColors.danger.withOpacity(0.1), AppColors.danger.withOpacity(0.05)]
-                        : [AppColors.success.withOpacity(0.1), AppColors.success.withOpacity(0.05)],
+                        ? [AppColors.danger.withValues(alpha: 0.1), AppColors.danger.withValues(alpha: 0.05)]
+                        : [AppColors.success.withValues(alpha: 0.1), AppColors.success.withValues(alpha: 0.05)],
                     begin: Alignment.topCenter,
                     end: Alignment.bottomCenter,
                   ),
@@ -67,49 +69,40 @@ class ResultScreen extends ConsumerWidget {
                 ),
                 child: Column(
                   children: [
-                    // Icon
-                    ZoomIn(
-                      duration: const Duration(milliseconds: 800),
-                      child: Container(
-                        padding: const EdgeInsets.all(24),
-                        decoration: BoxDecoration(
-                          color: isSpam ? AppColors.danger : AppColors.success,
-                          shape: BoxShape.circle,
-                          boxShadow: [
-                            BoxShadow(
-                              color: (isSpam ? AppColors.danger : AppColors.success).withOpacity(0.3),
-                              blurRadius: 20,
-                              spreadRadius: 5,
-                            ),
-                          ],
-                        ),
-                        child: Icon(
-                          isSpam ? Icons.warning_rounded : Icons.check_circle_rounded,
-                          size: 80,
-                          color: Colors.white,
-                        ),
+                    // Animated Result Icon
+                    if (isSpam)
+                      ThreatAlertAnimation(
+                        size: 120,
+                        showShake: true,
+                        showPulse: true,
+                        enableHaptic: true,
+                      )
+                    else
+                      SuccessCheckmark(
+                        size: 120,
+                        showParticles: true,
                       ),
-                    ),
                     const SizedBox(height: 24),
-                    // Status
-                    Text(
-                      isSpam ? 'SPAM DETECTED!' : 'SAFE MESSAGE',
-                      style: TextStyle(
-                        fontSize: 28,
-                        fontWeight: FontWeight.bold,
-                        color: isSpam ? AppColors.danger : AppColors.success,
+                    // Animated Status Badge
+                    if (isSpam)
+                      AnimatedThreatBadge(
+                        text: 'SPAM DETECTED!',
+                        level: result.confidence > 0.8
+                            ? ThreatLevel.critical
+                            : result.confidence > 0.6
+                                ? ThreatLevel.high
+                                : ThreatLevel.medium,
+                      )
+                    else
+                      AnimatedSuccessBadge(
+                        text: 'SAFE MESSAGE',
                       ),
-                      textAlign: TextAlign.center,
-                    ),
-                    const SizedBox(height: 12),
-                    // Confidence
-                    Text(
-                      'Confidence: $confidence%',
-                      style: TextStyle(
-                        fontSize: 18,
-                        color: isDark ? AppColors.darkTextSecondary : AppColors.textSecondary,
-                        fontWeight: FontWeight.w500,
-                      ),
+                    const SizedBox(height: 20),
+                    // Confidence Ring
+                    ConfidenceIndicator(
+                      confidence: result.confidence,
+                      isSpam: isSpam,
+                      size: 100,
                     ),
                   ],
                 ),
