@@ -1,0 +1,39 @@
+# Xcode 26 Environment for AI Anti-Spam Shield Mobile
+#
+# Default system Xcode: Xcode.app (keep this for most projects)
+# This project requires: Xcode26.app
+#
+# Usage: Open Xcode workspace with Xcode 26
+#   source .xcode-env
+#   open-xcode
+#
+# Or run any command with Xcode 26:
+#   xcode26 <command>
+
+export DEVELOPER_DIR=/Applications/Xcode26.app/Contents/Developer
+
+# Function to open this project in Xcode 26
+open-xcode() {
+    open -a /Applications/Xcode26.app ios/Runner.xcworkspace
+}
+
+# Function to run any command with Xcode 26
+xcode26() {
+    DEVELOPER_DIR=/Applications/Xcode26.app/Contents/Developer "$@"
+}
+
+# Function to run flutter with Xcode 26
+flutter-run() {
+    DEVELOPER_DIR=/Applications/Xcode26.app/Contents/Developer flutter run "$@"
+}
+
+flutter-build() {
+    DEVELOPER_DIR=/Applications/Xcode26.app/Contents/Developer flutter build "$@"
+}
+
+echo "Xcode 26 environment loaded."
+echo "Commands available:"
+echo "  open-xcode   - Open project in Xcode 26"
+echo "  flutter-run  - Run flutter with Xcode 26"
+echo "  flutter-build - Build flutter with Xcode 26"
+echo "  xcode26 <cmd> - Run any command with Xcode 26"
