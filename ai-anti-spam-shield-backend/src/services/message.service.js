@@ -63,9 +63,9 @@ class MessageService {
         ...(response.data.details && { details: response.data.details })
       };
 
-      // Save to history if user is authenticated
+      // Save to history if user is authenticated (with 'voice' scan type)
       if (userId) {
-        await this.saveScanHistory(userId, response.data.transcribed_text, result);
+        await this.saveScanHistory(userId, response.data.transcribed_text, result, 'voice');
       }
 
       return result;
@@ -77,8 +77,8 @@ class MessageService {
       }
 
       if (error.code === 'ECONNREFUSED') {
-        logger.error('AI service connection refused', { 
-          url: config.ai.serviceUrl 
+        logger.error('AI service connection refused', {
+          url: config.ai.serviceUrl
         });
         throw ApiError.internal('AI service is unavailable. Please try again later.');
       }
@@ -89,15 +89,15 @@ class MessageService {
       }
 
       if (error.response) {
-        logger.error('AI service error response', { 
+        logger.error('AI service error response', {
           status: error.response.status,
-          data: error.response.data 
+          data: error.response.data
         });
 
         const statusCode = error.response.status;
-        const errorMessage = error.response.data?.detail || 
-                           error.response.data?.message || 
-                           error.response.data?.error || 
+        const errorMessage = error.response.data?.detail ||
+                           error.response.data?.message ||
+                           error.response.data?.error ||
                            'AI service error';
 
         if (statusCode === 400) {
@@ -109,9 +109,9 @@ class MessageService {
         }
       }
 
-      logger.error('Unknown error calling AI voice service', { 
+      logger.error('Unknown error calling AI voice service', {
         error: error.message,
-        stack: error.stack 
+        stack: error.stack
       });
       throw ApiError.internal('Failed to analyze voice message. Please try again.');
     }
@@ -215,9 +215,20 @@ class MessageService {
 
   /**
    * Save scan history to database
+   * @param {string} userId - User ID
+   * @param {string} message - Message content
+   * @param {Object} scanResult - Scan result
+   * @param {string} scanType - Type of scan: 'text' or 'voice'
    */
-  async saveScanHistory(userId, message, scanResult) {
+  async saveScanHistory(userId, message, scanResult, scanType = 'text') {
     try {
+      // Stringify details if it's an object (Prisma schema expects String)
+      const detailsStr = scanResult.details
+        ? (typeof scanResult.details === 'string'
+            ? scanResult.details
+            : JSON.stringify(scanResult.details))
+        : null;
+
       const history = await prisma.scanHistory.create({
         data: {
           userId,
@@ -225,11 +236,12 @@ class MessageService {
           isSpam: scanResult.is_spam,
           confidence: scanResult.confidence,
           prediction: scanResult.prediction,
-          details: scanResult.details || {}
+          details: detailsStr,
+          scanType
         }
       });
 
-      logger.info('Scan history saved', { historyId: history.id, userId });
+      logger.info('Scan history saved', { historyId: history.id, userId, scanType });
 
       return history;
     } catch (error) {
@@ -317,16 +329,22 @@ class MessageService {
    * Get scan statistics for user
    */
   async getScanStatistics(userId) {
-    const [totalScans, spamCount, hamCount] = await Promise.all([
+    const [totalScans, spamCount, hamCount, voiceScans, textScans] = await Promise.all([
       prisma.scanHistory.count({ where: { userId } }),
       prisma.scanHistory.count({ where: { userId, isSpam: true } }),
-      prisma.scanHistory.count({ where: { userId, isSpam: false } })
+      prisma.scanHistory.count({ where: { userId, isSpam: false } }),
+      prisma.scanHistory.count({ where: { userId, scanType: 'voice' } }),
+      prisma.scanHistory.count({ where: { userId, scanType: 'text' } })
     ]);
 
     return {
       totalScans,
       spamCount,
+      spamDetected: spamCount,  // Alias for mobile app
       hamCount,
+      safeMessages: hamCount,   // Alias for mobile app
+      voiceScans,
+      textScans,
       spamPercentage: totalScans > 0 ? ((spamCount / totalScans) * 100).toFixed(2) : 0
     };
   }

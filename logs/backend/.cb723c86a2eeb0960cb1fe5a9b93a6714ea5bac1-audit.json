@@ -9,6 +9,36 @@
             "date": 1768741422305,
             "name": "/opt/school-project/ai-anti-spam-shield/logs/backend/combined-2026-01-18.log",
             "hash": "4ef87a90494fc888902d478326f6b66825ad0db17560838ef3042f6753beaa7b"
+        },
+        {
+            "date": 1768750139395,
+            "name": "/opt/school-project/ai-anti-spam-shield/logs/backend/combined-2026-01-18.log.1",
+            "hash": "56d75772cce2cbc08259d586ef6944b5a7b5760a9b91ff3766faeba1ecef0391"
+        },
+        {
+            "date": 1768750160268,
+            "name": "/opt/school-project/ai-anti-spam-shield/logs/backend/combined-2026-01-18.log.2",
+            "hash": "85b63e0cff505188f6ed74983d77e6eec9f0f6ae2dfa10a0327da9f76dfb1153"
+        },
+        {
+            "date": 1768754906487,
+            "name": "/opt/school-project/ai-anti-spam-shield/logs/backend/combined-2026-01-18.log.3",
+            "hash": "c447aa51e588f21a0ea3ea2ffee08dee8677d873ca314130328b359a03516868"
+        },
+        {
+            "date": 1768754936270,
+            "name": "/opt/school-project/ai-anti-spam-shield/logs/backend/combined-2026-01-18.log.4",
+            "hash": "e9d7f8f6af01aa0fa86159c12aa9ccfa36b335a1ffccec0a1529d7898cbdfdd5"
+        },
+        {
+            "date": 1768754966890,
+            "name": "/opt/school-project/ai-anti-spam-shield/logs/backend/combined-2026-01-18.log.5",
+            "hash": "493d217a26ba024b11c2f3199cb4593300496030a525c7f63ccff1422ac635fe"
+        },
+        {
+            "date": 1768755698444,
+            "name": "/opt/school-project/ai-anti-spam-shield/logs/backend/combined-2026-01-19.log",
+            "hash": "fa890a420b4d6357f0a65a8221aa10ce3cb9588d1b57050b6370079f6022b51a"
         }
     ],
     "hashType": "sha256"

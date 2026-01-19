@@ -18,14 +18,33 @@ class ScanHistory {
   });
 
   factory ScanHistory.fromJson(Map<String, dynamic> json) {
+    // Handle details field - it might be a JSON string from the backend
+    Map<String, dynamic>? detailsMap;
+    if (json['details'] != null) {
+      if (json['details'] is Map) {
+        detailsMap = Map<String, dynamic>.from(json['details']);
+      } else if (json['details'] is String && json['details'].isNotEmpty) {
+        try {
+          final parsed = json['details'];
+          if (parsed is Map) {
+            detailsMap = Map<String, dynamic>.from(parsed);
+          }
+        } catch (_) {
+          detailsMap = null;
+        }
+      }
+    }
+
     return ScanHistory(
-      id: json['id'],
-      message: json['message'],
-      isSpam: json['isSpam'] ?? false,
+      id: json['id']?.toString() ?? '',
+      message: json['message']?.toString() ?? '',
+      isSpam: json['isSpam'] == true,
       confidence: (json['confidence'] as num?)?.toDouble() ?? 0.0,
-      prediction: json['prediction'] ?? '',
-      scannedAt: DateTime.parse(json['scannedAt']),
-      details: json['details'],
+      prediction: json['prediction']?.toString() ?? '',
+      scannedAt: json['scannedAt'] != null
+          ? DateTime.tryParse(json['scannedAt'].toString()) ?? DateTime.now()
+          : DateTime.now(),
+      details: detailsMap,
     );
   }
 

@@ -297,9 +297,12 @@ class PhishingDetector:
         # Determine threat level
         threat_level = self._determine_threat_level(final_score, indicators)
 
-        # Determine phishing type
+        # Determine if it's phishing
+        is_phishing = final_score >= 0.5
+
+        # Determine phishing type (only if actually phishing)
         phishing_type = self._determine_phishing_type(
-            scan_type, indicators, url_results
+            scan_type, indicators, url_results, is_phishing
         )
 
         # Generate recommendation
@@ -308,7 +311,7 @@ class PhishingDetector:
         )
 
         return PhishingResult(
-            is_phishing=final_score >= 0.5,
+            is_phishing=is_phishing,
             confidence=round(final_score, 4),
             phishing_type=phishing_type.value,
             threat_level=threat_level.value,
@@ -623,8 +626,13 @@ class PhishingDetector:
             return ThreatLevel.NONE
 
     def _determine_phishing_type(self, scan_type: str, indicators: List[str],
-                                  url_results: List[URLAnalysisResult]) -> PhishingType:
+                                  url_results: List[URLAnalysisResult],
+                                  is_phishing: bool = False) -> PhishingType:
         """Determine the type of phishing attack"""
+        # If not phishing, return NONE regardless of scan type
+        if not is_phishing:
+            return PhishingType.NONE
+
         if scan_type == 'url' or (url_results and all(r.is_suspicious for r in url_results)):
             return PhishingType.URL
         elif scan_type == 'sms':

@@ -1,0 +1,40 @@
+{
+  "model_type": "voice",
+  "description": "Voice Call Scam Detection Model",
+  "version": "1.0.0",
+  "trained_at": "2026-01-18T21:42:55.632493",
+  "dataset": "BothBosu/scam-dialogue",
+  "dataset_variant": null,
+  "algorithm": "naive_bayes",
+  "metrics": {
+    "accuracy": 1.0,
+    "precision": 1.0,
+    "recall": 1.0,
+    "f1": 1.0,
+    "roc_auc": 1.0,
+    "train_time_seconds": 0.016512,
+    "train_samples": 1280,
+    "test_samples": 320,
+    "feature_count": 5000
+  },
+  "preprocessing": {
+    "lowercase": true,
+    "remove_urls": true,
+    "remove_emails": true,
+    "stemming": true,
+    "stopwords": "english"
+  },
+  "vectorizer": {
+    "type": "TfidfVectorizer",
+    "max_features": 5000,
+    "ngram_range": [
+      1,
+      3
+    ]
+  },
+  "use_custom_features": false,
+  "files": {
+    "model": "voice_classifier.pkl",
+    "vectorizer": "voice_vectorizer.pkl"
+  }
+}

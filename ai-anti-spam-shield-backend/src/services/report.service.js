@@ -3,6 +3,19 @@ const ApiError = require('../utils/apiError');
 const logger = require('../utils/logger');
 
 /**
+ * Transform report for mobile app compatibility
+ * Maps backend field names to what mobile expects
+ */
+function transformReport(report) {
+  if (!report) return report;
+  return {
+    ...report,
+    type: report.reportType?.toLowerCase(),
+    content: report.messageText
+  };
+}
+
+/**
  * Report Service
  * Handles business logic for report operations
  */
@@ -12,7 +25,7 @@ class ReportService {
    * Create a new report
    */
   async createReport(reportData) {
-    const { userId, messageText, reportType, description } = reportData;
+    const { userId, messageText, reportType, description, url, phoneNumber, senderInfo } = reportData;
 
     // Validate report type
     const validTypes = ['SPAM', 'PHISHING', 'SCAM', 'SUSPICIOUS', 'OTHER'];
@@ -25,13 +38,16 @@ class ReportService {
         userId,
         messageText,
         reportType,
-        description
+        description,
+        url,
+        phoneNumber,
+        senderInfo
       }
     });
 
     logger.info('Report created', { reportId: report.id, userId });
 
-    return report;
+    return transformReport(report);
   }
 
   /**
@@ -67,7 +83,7 @@ class ReportService {
     ]);
 
     return {
-      reports,
+      reports: reports.map(transformReport),
       pagination: {
         page: parseInt(page),
         limit: parseInt(limit),
@@ -103,7 +119,7 @@ class ReportService {
       throw ApiError.notFound('Report not found');
     }
 
-    return report;
+    return transformReport(report);
   }
 
   /**
@@ -129,7 +145,7 @@ class ReportService {
     ]);
 
     return {
-      reports,
+      reports: reports.map(transformReport),
       pagination: {
         page: parseInt(page),
         limit: parseInt(limit),
@@ -168,7 +184,7 @@ class ReportService {
 
     logger.info('Report updated', { reportId: id, userId });
 
-    return report;
+    return transformReport(report);
   }
 
   /**
@@ -215,18 +231,32 @@ class ReportService {
       })
     ]);
 
+    const reportsByType = byType.reduce((acc, item) => {
+      acc[item.reportType.toLowerCase()] = item._count;
+      return acc;
+    }, {});
+
     return {
+      // Flat fields for mobile app compatibility
       total,
+      totalReports: total,
+      pending,
+      pendingReports: pending,
+      reviewed,
+      reviewedReports: reviewed,
+      resolved,
+      resolvedReports: resolved,
+      rejected,
+      rejectedReports: rejected,
+      // Nested structure for backward compatibility
       byStatus: {
         pending,
         reviewed,
         resolved,
         rejected
       },
-      byType: byType.reduce((acc, item) => {
-        acc[item.reportType] = item._count;
-        return acc;
-      }, {})
+      byType: reportsByType,
+      reportsByType
     };
   }
 }

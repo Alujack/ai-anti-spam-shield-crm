@@ -1,0 +1,4 @@
+accuracy,precision,recall,f1,roc_auc,train_time_seconds,train_samples,test_samples,feature_count,algorithm
+1.0,1.0,1.0,1.0,1.0,0.014999,1280,320,5000,naive_bayes
+1.0,1.0,1.0,1.0,1.0,2.667876,1280,320,5000,logistic_regression
+1.0,1.0,1.0,1.0,1.0,0.16391,1280,320,5000,random_forest

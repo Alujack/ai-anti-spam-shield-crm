@@ -55,14 +55,21 @@ class HistoryNotifier extends Notifier<HistoryState> {
         isSpam: isSpam,
       );
 
-      final histories = result['histories'] as List<ScanHistory>;
+      final historiesList = result['histories'];
+      final histories = historiesList is List<ScanHistory>
+          ? historiesList
+          : <ScanHistory>[];
+
       state = state.copyWith(
         histories: histories,
         isLoading: false,
         currentPage: page,
         hasMore: histories.length >= limit,
       );
-    } catch (e) {
+    } catch (e, stackTrace) {
+      // Log the actual error for debugging
+      print('History load error: $e');
+      print('Stack trace: $stackTrace');
       state = state.copyWith(
         isLoading: false,
         error: _apiService.getErrorMessage(e),

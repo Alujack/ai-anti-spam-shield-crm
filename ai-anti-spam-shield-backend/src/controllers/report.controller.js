@@ -7,18 +7,24 @@ const ApiError = require('../utils/apiError');
 const createReport = async (req, res, next) => {
   try {
     const userId = req.user.id;
-    const { messageText, reportType, description } = req.body;
+    // Support both mobile (type/content) and legacy (reportType/messageText) field names
+    const reportType = (req.body.type || req.body.reportType || '').toUpperCase();
+    const messageText = req.body.content || req.body.messageText;
+    const { description, url, phoneNumber, senderInfo } = req.body;
 
     // Validation
     if (!messageText || !reportType) {
-      throw ApiError.badRequest('Message text and report type are required');
+      throw ApiError.badRequest('Content and type are required');
     }
 
     const report = await reportService.createReport({
       userId,
       messageText,
       reportType,
-      description
+      description,
+      url,
+      phoneNumber,
+      senderInfo
     });
 
     res.status(201).json({

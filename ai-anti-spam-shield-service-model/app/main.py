@@ -8,7 +8,7 @@ import os
 import speech_recognition as sr
 import tempfile
 import io
-from model.predictor import SpamPredictor
+from model.predictor import SpamPredictor, MultiModelPredictor
 from core.logging_config import setup_logging
 
 # Initialize logger
@@ -58,6 +58,16 @@ if HAS_PHISHING_DETECTOR:
     except Exception as e:
         print(f"Warning: Could not initialize phishing detector: {e}")
         phishing_detector = None
+
+# Initialize multi-model predictor for specialized models
+multi_predictor = None
+try:
+    multi_predictor = MultiModelPredictor(models_dir='model/trained_models')
+    print(f"Multi-model predictor initialized with models: {list(multi_predictor.models.keys())}")
+except Exception as e:
+    print(f"Warning: Could not initialize multi-model predictor: {e}")
+    print("Train separate models using: python model/train_separate_models.py --all")
+    multi_predictor = None
 
 # Request/Response Models
 
@@ -150,6 +160,51 @@ class PhishingResponse(BaseModel):
     timestamp: str
 
 
+# ============================================
+# SPECIALIZED MODEL REQUEST/RESPONSE MODELS
+# ============================================
+
+class SMSPredictionRequest(BaseModel):
+    message: str = Field(..., min_length=1, max_length=10000,
+                         description="SMS message to analyze")
+
+
+class VoiceScamRequest(BaseModel):
+    dialogue: str = Field(..., min_length=1, max_length=50000,
+                          description="Transcribed voice call dialogue to analyze")
+
+
+class PhishingV2Request(BaseModel):
+    text: str = Field(..., min_length=1, max_length=50000,
+                      description="Text, email, or URL to analyze for phishing")
+
+
+class AutoDetectRequest(BaseModel):
+    text: str = Field(..., min_length=1, max_length=50000,
+                      description="Any text content - model will auto-detect type")
+
+
+class SpecializedPredictionResponse(BaseModel):
+    is_threat: bool
+    prediction: str
+    confidence: float
+    threat_probability: float
+    probabilities: dict
+    model_type: str
+    threshold: float
+    details: Optional[dict] = None
+    timestamp: str
+
+
+class BatchSpecializedRequest(BaseModel):
+    texts: List[str] = Field(..., min_items=1, max_items=100,
+                             description="List of texts to analyze")
+    model_type: Literal['sms', 'voice', 'phishing', 'auto'] = Field(
+        default='auto',
+        description="Model to use: sms, voice, phishing, or auto-detect"
+    )
+
+
 # Routes
 
 
@@ -240,7 +295,7 @@ async def predict_voice(audio: UploadFile = File(...)):
     """
     Predict if a voice message is spam or not
 
-    - **audio**: Audio file (WAV, MP3, OGG, FLAC)
+    - **audio**: Audio file (WAV, MP3, OGG, FLAC, M4A, AAC, WEBM)
 
     Transcribes audio to text, then analyzes for spam
     """
@@ -250,54 +305,115 @@ async def predict_voice(audio: UploadFile = File(...)):
             detail="Model not loaded. Please train the model first."
         )
 
+    temp_audio_path = None
+    wav_path = None
+
     try:
         # Read audio file
         audio_data = await audio.read()
+        file_ext = os.path.splitext(audio.filename)[1].lower() if audio.filename else '.wav'
 
-        # Create temporary file
-        with tempfile.NamedTemporaryFile(delete=False, suffix=os.path.splitext(audio.filename)[1]) as temp_audio:
+        # Create temporary file with original format
+        with tempfile.NamedTemporaryFile(delete=False, suffix=file_ext) as temp_audio:
             temp_audio.write(audio_data)
             temp_audio_path = temp_audio.name
 
-        try:
-            # Initialize speech recognizer
-            recognizer = sr.Recognizer()
+        # Formats that need conversion (speech_recognition only supports WAV, AIFF, FLAC natively)
+        formats_needing_conversion = ['.m4a', '.aac', '.mp3', '.ogg', '.webm', '.mp4', '.opus']
 
-            # Load audio file
-            with sr.AudioFile(temp_audio_path) as source:
-                audio_content = recognizer.record(source)
-
-            # Transcribe audio to text using Google Speech Recognition
+        if file_ext in formats_needing_conversion:
+            # Try to convert using pydub (requires ffmpeg)
             try:
-                transcribed_text = recognizer.recognize_google(audio_content)
-            except sr.UnknownValueError:
+                from pydub import AudioSegment
+
+                # Detect format
+                format_map = {
+                    '.m4a': 'mp4',
+                    '.aac': 'aac',
+                    '.mp3': 'mp3',
+                    '.ogg': 'ogg',
+                    '.webm': 'webm',
+                    '.mp4': 'mp4',
+                    '.opus': 'opus'
+                }
+                input_format = format_map.get(file_ext, file_ext[1:])
+
+                # Load and convert to WAV
+                audio_segment = AudioSegment.from_file(temp_audio_path, format=input_format)
+
+                # Create WAV file
+                wav_path = temp_audio_path + '.wav'
+                audio_segment.export(wav_path, format='wav')
+
+                # Use the converted WAV file
+                audio_file_to_use = wav_path
+                logger.info(f"Converted {file_ext} to WAV for processing")
+
+            except ImportError:
+                logger.warning("pydub not installed. Install with: pip install pydub")
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="Could not understand audio. Please speak clearly."
+                    detail=f"Audio format {file_ext} requires conversion. Please upload WAV or FLAC format, or install pydub and ffmpeg on the server."
                 )
-            except sr.RequestError as e:
-                # Fallback to basic transcription
-                transcribed_text = "Audio transcription service unavailable"
+            except Exception as conv_error:
+                logger.error(f"Audio conversion failed: {conv_error}")
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"Failed to convert audio format {file_ext}. Please try WAV or FLAC format. Error: {str(conv_error)}"
+                )
+        else:
+            audio_file_to_use = temp_audio_path
 
-            # Analyze transcribed text for spam
-            result = predictor.predict(transcribed_text)
-            result['transcribed_text'] = transcribed_text
-            result['timestamp'] = datetime.utcnow().isoformat()
+        # Initialize speech recognizer
+        recognizer = sr.Recognizer()
 
-            return result
+        # Load audio file
+        try:
+            with sr.AudioFile(audio_file_to_use) as source:
+                audio_content = recognizer.record(source)
+        except Exception as audio_error:
+            logger.error(f"Failed to load audio file: {audio_error}")
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Failed to process audio file. Please ensure it's a valid audio format. Error: {str(audio_error)}"
+            ) from None
 
-        finally:
-            # Clean up temporary file
-            if os.path.exists(temp_audio_path):
-                os.unlink(temp_audio_path)
+        # Transcribe audio to text using Google Speech Recognition
+        try:
+            transcribed_text = recognizer.recognize_google(audio_content)
+        except sr.UnknownValueError:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Could not understand audio. Please speak clearly."
+            ) from None
+        except sr.RequestError as e:
+            logger.error(f"Speech recognition service error: {e}")
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="Speech recognition service is unavailable. Please try again later."
+            ) from None
+
+        # Analyze transcribed text for spam
+        result = predictor.predict(transcribed_text)
+        result['transcribed_text'] = transcribed_text
+        result['timestamp'] = datetime.utcnow().isoformat()
+
+        return result
 
     except HTTPException:
         raise
     except Exception as e:
+        logger.error(f"Voice prediction error: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Voice prediction error: {str(e)}"
         )
+    finally:
+        # Clean up temporary files
+        if temp_audio_path and os.path.exists(temp_audio_path):
+            os.unlink(temp_audio_path)
+        if wav_path and os.path.exists(wav_path):
+            os.unlink(wav_path)
 
 
 @app.get("/stats", tags=["Statistics"])
@@ -445,6 +561,212 @@ async def phishing_health():
         "detector_loaded": phishing_detector is not None,
         "ml_enabled": phishing_detector.ml_model is not None if phishing_detector else False,
         "transformer_enabled": phishing_detector.transformer_model is not None if phishing_detector else False,
+        "timestamp": datetime.utcnow().isoformat()
+    }
+
+
+# ============================================
+# SPECIALIZED MODEL ENDPOINTS
+# ============================================
+
+@app.post("/predict-sms", response_model=SpecializedPredictionResponse, tags=["Specialized Models"])
+async def predict_sms(request: SMSPredictionRequest):
+    """
+    Detect SMS spam using specialized SMS model
+
+    - **message**: The SMS text message to analyze
+
+    Uses model trained specifically on SMS spam dataset (Deysi/spam-detection-dataset)
+    """
+    if multi_predictor is None or not multi_predictor.is_model_loaded('sms'):
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="SMS model not loaded. Train using: python model/train_separate_models.py --model sms"
+        )
+
+    try:
+        result = multi_predictor.predict_sms(request.message)
+        result['timestamp'] = datetime.utcnow().isoformat()
+        return result
+    except Exception as e:
+        logger.error(f"SMS prediction error: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"SMS prediction error: {str(e)}"
+        )
+
+
+@app.post("/predict-voice-scam", response_model=SpecializedPredictionResponse, tags=["Specialized Models"])
+async def predict_voice_scam(request: VoiceScamRequest):
+    """
+    Detect voice call scams using specialized voice model
+
+    - **dialogue**: Transcribed voice call dialogue to analyze
+
+    Uses model trained specifically on scam dialogue dataset (BothBosu/scam-dialogue)
+    """
+    if multi_predictor is None or not multi_predictor.is_model_loaded('voice'):
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Voice model not loaded. Train using: python model/train_separate_models.py --model voice"
+        )
+
+    try:
+        result = multi_predictor.predict_voice(request.dialogue)
+        result['timestamp'] = datetime.utcnow().isoformat()
+        return result
+    except Exception as e:
+        logger.error(f"Voice scam prediction error: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Voice scam prediction error: {str(e)}"
+        )
+
+
+@app.post("/predict-phishing-v2", response_model=SpecializedPredictionResponse, tags=["Specialized Models"])
+async def predict_phishing_v2(request: PhishingV2Request):
+    """
+    Detect phishing using specialized phishing model (v2)
+
+    - **text**: Text, email content, or URL to analyze
+
+    Uses model trained specifically on phishing dataset (ealvaradob/phishing-dataset combined_reduced)
+    """
+    if multi_predictor is None or not multi_predictor.is_model_loaded('phishing'):
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Phishing model not loaded. Train using: python model/train_separate_models.py --model phishing"
+        )
+
+    try:
+        result = multi_predictor.predict_phishing(request.text)
+        result['timestamp'] = datetime.utcnow().isoformat()
+        return result
+    except Exception as e:
+        logger.error(f"Phishing v2 prediction error: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Phishing v2 prediction error: {str(e)}"
+        )
+
+
+@app.post("/predict-auto", response_model=SpecializedPredictionResponse, tags=["Specialized Models"])
+async def predict_auto(request: AutoDetectRequest):
+    """
+    Auto-detect content type and predict using appropriate specialized model
+
+    - **text**: Any text content (SMS, email, URL, voice dialogue)
+
+    Automatically detects content type and selects the best model:
+    - URLs/emails -> Phishing model
+    - Dialogue format (caller/receiver) -> Voice scam model
+    - Short messages -> SMS spam model
+    """
+    if multi_predictor is None or len(multi_predictor.models) == 0:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="No specialized models loaded. Train using: python model/train_separate_models.py --all"
+        )
+
+    try:
+        result = multi_predictor.predict_auto(request.text)
+        result['timestamp'] = datetime.utcnow().isoformat()
+        return result
+    except Exception as e:
+        logger.error(f"Auto prediction error: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Auto prediction error: {str(e)}"
+        )
+
+
+@app.post("/batch-specialized", tags=["Specialized Models"])
+async def batch_specialized_predict(request: BatchSpecializedRequest):
+    """
+    Batch prediction using specialized models
+
+    - **texts**: List of texts to analyze (max 100)
+    - **model_type**: Model to use (sms, voice, phishing, or auto)
+
+    Returns list of predictions with summary statistics
+    """
+    if multi_predictor is None or len(multi_predictor.models) == 0:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="No specialized models loaded. Train using: python model/train_separate_models.py --all"
+        )
+
+    try:
+        results = multi_predictor.batch_predict(request.texts, model_type=request.model_type)
+
+        # Add timestamps
+        for r in results:
+            r['timestamp'] = datetime.utcnow().isoformat()
+
+        # Summary statistics
+        threat_count = sum(1 for r in results if r.get('is_threat', False))
+        model_usage = {}
+        for r in results:
+            model = r.get('model_type', 'unknown')
+            model_usage[model] = model_usage.get(model, 0) + 1
+
+        return {
+            "predictions": results,
+            "summary": {
+                "total": len(results),
+                "threats_detected": threat_count,
+                "safe": len(results) - threat_count,
+                "models_used": model_usage
+            },
+            "timestamp": datetime.utcnow().isoformat()
+        }
+    except Exception as e:
+        logger.error(f"Batch specialized prediction error: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Batch prediction error: {str(e)}"
+        )
+
+
+@app.get("/model-stats", tags=["Specialized Models"])
+async def get_model_stats():
+    """
+    Get statistics and information about all loaded specialized models
+
+    Returns:
+    - List of loaded models
+    - Training metrics for each model
+    - Algorithm used
+    - Confidence thresholds
+    """
+    if multi_predictor is None:
+        return {
+            "status": "unavailable",
+            "loaded_models": [],
+            "message": "No specialized models loaded. Train using: python model/train_separate_models.py --all",
+            "timestamp": datetime.utcnow().isoformat()
+        }
+
+    model_info = multi_predictor.get_model_info()
+    model_info['status'] = 'ready' if model_info['loaded_models'] else 'no_models'
+    model_info['timestamp'] = datetime.utcnow().isoformat()
+
+    return model_info
+
+
+@app.get("/specialized-health", tags=["Specialized Models"])
+async def specialized_health():
+    """Check health status of all specialized models"""
+    return {
+        "status": "healthy" if multi_predictor and len(multi_predictor.models) > 0 else "unavailable",
+        "predictor_initialized": multi_predictor is not None,
+        "models_loaded": list(multi_predictor.models.keys()) if multi_predictor else [],
+        "models_count": len(multi_predictor.models) if multi_predictor else 0,
+        "available_endpoints": {
+            "sms": multi_predictor.is_model_loaded('sms') if multi_predictor else False,
+            "voice": multi_predictor.is_model_loaded('voice') if multi_predictor else False,
+            "phishing": multi_predictor.is_model_loaded('phishing') if multi_predictor else False
+        },
         "timestamp": datetime.utcnow().isoformat()
     }
 

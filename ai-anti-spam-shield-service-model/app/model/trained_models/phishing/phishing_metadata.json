@@ -1,0 +1,40 @@
+{
+  "model_type": "phishing",
+  "description": "Phishing Detection Model (URLs, Emails, SMS)",
+  "version": "1.0.0",
+  "trained_at": "2026-01-18T22:03:54.289529",
+  "dataset": "ealvaradob/phishing-dataset",
+  "dataset_variant": "combined_reduced",
+  "algorithm": "logistic_regression",
+  "metrics": {
+    "accuracy": 0.7774380431284197,
+    "precision": 0.9389993145990404,
+    "recall": 0.5142642642642643,
+    "f1": 0.6645646373999515,
+    "roc_auc": 0.8937486782557206,
+    "train_time_seconds": 118.209978,
+    "train_samples": 24852,
+    "test_samples": 6214,
+    "feature_count": 5051
+  },
+  "preprocessing": {
+    "lowercase": true,
+    "remove_urls": true,
+    "remove_emails": true,
+    "stemming": true,
+    "stopwords": "english"
+  },
+  "vectorizer": {
+    "type": "TfidfVectorizer",
+    "max_features": 5000,
+    "ngram_range": [
+      1,
+      2
+    ]
+  },
+  "use_custom_features": true,
+  "files": {
+    "model": "phishing_classifier.pkl",
+    "vectorizer": "phishing_vectorizer.pkl"
+  }
+}

@@ -359,7 +359,7 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
                         color: isDark ? AppColors.darkBackground : AppColors.background,
                         borderRadius: BorderRadius.circular(12),
                       ),
-                      child: Text(
+                      child: SelectableText(
                         history.message,
                         style: TextStyle(
                           fontSize: 14,

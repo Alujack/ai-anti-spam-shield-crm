@@ -1,0 +1,40 @@
+{
+  "model_type": "sms",
+  "description": "SMS Spam Detection Model",
+  "version": "1.0.0",
+  "trained_at": "2026-01-18T22:07:19.237012",
+  "dataset": "Deysi/spam-detection-dataset",
+  "dataset_variant": null,
+  "algorithm": "logistic_regression",
+  "metrics": {
+    "accuracy": 0.9445953286257469,
+    "precision": 0.9516355140186916,
+    "recall": 0.9095578383206788,
+    "f1": 0.9301210321991322,
+    "roc_auc": 0.9867427044873325,
+    "train_time_seconds": 10.067694,
+    "train_samples": 44184,
+    "test_samples": 11046,
+    "feature_count": 3000
+  },
+  "preprocessing": {
+    "lowercase": true,
+    "remove_urls": true,
+    "remove_emails": true,
+    "stemming": true,
+    "stopwords": "english"
+  },
+  "vectorizer": {
+    "type": "TfidfVectorizer",
+    "max_features": 3000,
+    "ngram_range": [
+      1,
+      2
+    ]
+  },
+  "use_custom_features": false,
+  "files": {
+    "model": "sms_classifier.pkl",
+    "vectorizer": "sms_vectorizer.pkl"
+  }
+}
