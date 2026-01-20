@@ -18,6 +18,15 @@ try:
 except ImportError:
     HAS_V2_MODELS = False
 
+# Import Phase 3: Phishing Intelligence Engine
+try:
+    from intel.domain_intel import DomainIntelligence
+    from intel.screenshot_analyzer import get_analyzer
+    from intel.risk_scorer import PhishingRiskScorer
+    HAS_INTEL_ENGINE = True
+except ImportError:
+    HAS_INTEL_ENGINE = False
+
 # Initialize logger
 logger = setup_logging('ai-anti-spam-shield.model-service')
 
@@ -89,6 +98,19 @@ if HAS_V2_MODELS:
     except Exception as e:
         print(f"Warning: Could not initialize V2 predictor: {e}")
         print("Train and export V2 models using: python -m model.transformer_trainer && python -m model.onnx_exporter")
+
+# Initialize Phase 3: Phishing Intelligence Engine
+domain_intel = None
+risk_scorer = None
+intel_available = False
+if HAS_INTEL_ENGINE:
+    try:
+        domain_intel = DomainIntelligence()
+        risk_scorer = PhishingRiskScorer()
+        intel_available = True
+        print("Phishing Intelligence Engine initialized successfully!")
+    except Exception as e:
+        print(f"Warning: Could not initialize Phishing Intelligence Engine: {e}")
 
 # Request/Response Models
 
@@ -245,6 +267,55 @@ class V2PredictionResponse(BaseModel):
 
 class V2ElderModeResponse(V2PredictionResponse):
     elder_warnings: List[str]
+
+
+# Phase 3: Deep URL Analysis Request/Response Models
+class DeepURLRequest(BaseModel):
+    url: str = Field(..., min_length=5, max_length=2000,
+                     description="URL to analyze for phishing")
+    include_screenshot: bool = Field(
+        default=False,
+        description="Whether to capture and analyze screenshot (slower)"
+    )
+    include_domain_intel: bool = Field(
+        default=True,
+        description="Whether to include domain intelligence"
+    )
+
+
+class DomainIntelRequest(BaseModel):
+    domain: str = Field(..., min_length=3, max_length=255,
+                        description="Domain to analyze")
+
+
+class RiskIndicator(BaseModel):
+    source: str
+    description: str
+    severity: str
+    score: float
+
+
+class RiskAssessmentResponse(BaseModel):
+    total_score: float
+    threat_level: str
+    text_score: float
+    url_score: float
+    domain_score: float
+    visual_score: float
+    indicators: List[dict]
+    recommendation: str
+    confidence: float
+
+
+class DeepURLResponse(BaseModel):
+    url: str
+    is_phishing: bool
+    threat_level: str
+    confidence: float
+    risk_score: float
+    recommendation: str
+    details: dict
+    timestamp: str
 
 
 # Routes
@@ -944,6 +1015,217 @@ async def v2_health():
         "v2_available": v2_available,
         "models_loaded": multi_predictor_v2.get_available_models() if v2_available else [],
         "onnx_runtime": "enabled",
+        "timestamp": datetime.utcnow().isoformat()
+    }
+
+
+# ============================================
+# PHASE 3: PHISHING INTELLIGENCE ENGINE
+# ============================================
+
+@app.post("/analyze-url-deep", response_model=DeepURLResponse, tags=["Phishing Intelligence"])
+async def analyze_url_deep(request: DeepURLRequest):
+    """
+    Deep URL analysis with domain intelligence and visual analysis
+
+    Returns comprehensive phishing risk assessment including:
+    - Domain age and registration info
+    - SSL certificate analysis
+    - ASN reputation
+    - Visual analysis (optional)
+    - Combined risk score
+
+    This is the most thorough analysis available for URL-based phishing detection.
+    """
+    if not intel_available:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Phishing Intelligence Engine not available. Install required dependencies."
+        )
+
+    try:
+        results = {}
+
+        # Text/ML analysis (using existing predictor)
+        text_result = None
+        if v2_available:
+            try:
+                text_result = multi_predictor_v2.predict_phishing(request.url)
+            except Exception as e:
+                logger.warning(f"V2 text analysis failed: {e}")
+                text_result = {"confidence": 0, "is_phishing": False}
+        else:
+            text_result = {"confidence": 0, "is_phishing": False}
+
+        results["text_analysis"] = text_result
+
+        # Domain intelligence
+        domain_result = None
+        if request.include_domain_intel:
+            domain_result = await domain_intel.analyze(request.url)
+            results["domain_intelligence"] = domain_result.to_dict()
+
+        # Visual analysis
+        visual_result = None
+        if request.include_screenshot:
+            try:
+                analyzer = await get_analyzer()
+                visual_result = await analyzer.analyze(request.url)
+                results["visual_analysis"] = visual_result.to_dict()
+            except Exception as e:
+                logger.warning(f"Visual analysis failed: {e}")
+                results["visual_analysis"] = {"error": str(e)}
+
+        # Prepare text result dict for risk scorer
+        text_result_dict = None
+        if text_result:
+            if hasattr(text_result, 'to_dict'):
+                text_result_dict = text_result.to_dict()
+            elif isinstance(text_result, dict):
+                text_result_dict = text_result
+                # Normalize keys
+                if 'is_spam' in text_result_dict and 'is_phishing' not in text_result_dict:
+                    text_result_dict['is_phishing'] = text_result_dict['is_spam']
+
+        # Combined risk score
+        risk_result = risk_scorer.calculate_risk(
+            url=request.url,
+            text_result=text_result_dict,
+            domain_intel=domain_result.to_dict() if domain_result else None,
+            visual_result=visual_result.to_dict() if visual_result else None,
+        )
+
+        results["risk_assessment"] = risk_result.to_dict()
+
+        return {
+            "url": request.url,
+            "is_phishing": risk_result.threat_level.value in ["HIGH", "CRITICAL"],
+            "threat_level": risk_result.threat_level.value,
+            "confidence": risk_result.confidence,
+            "risk_score": risk_result.total_score,
+            "recommendation": risk_result.recommendation,
+            "details": results,
+            "timestamp": datetime.utcnow().isoformat(),
+        }
+
+    except Exception as e:
+        logger.error(f"Deep URL analysis failed: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/intel/domain/{domain}", tags=["Phishing Intelligence"])
+async def get_domain_intel(domain: str):
+    """
+    Get domain intelligence for a specific domain
+
+    Returns:
+    - Domain age (WHOIS data)
+    - SSL certificate information
+    - ASN and IP reputation
+    - DNS configuration (MX, SPF, DMARC)
+    - Risk indicators
+    """
+    if not intel_available:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Phishing Intelligence Engine not available"
+        )
+
+    try:
+        result = await domain_intel.analyze(f"https://{domain}")
+        response = result.to_dict()
+        response["timestamp"] = datetime.utcnow().isoformat()
+        return response
+    except Exception as e:
+        logger.error(f"Domain intel failed for {domain}: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/intel/screenshot", tags=["Phishing Intelligence"])
+async def analyze_screenshot(request: DeepURLRequest):
+    """
+    Capture and analyze screenshot of a URL
+
+    Returns:
+    - Screenshot (base64 encoded if requested)
+    - Login form detection
+    - Password field detection
+    - Brand impersonation indicators
+    - Visual risk score
+    """
+    if not intel_available:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Phishing Intelligence Engine not available"
+        )
+
+    try:
+        analyzer = await get_analyzer()
+        result = await analyzer.analyze(
+            request.url,
+            capture_screenshot=request.include_screenshot
+        )
+        response = result.to_dict()
+        response["url"] = request.url
+        response["timestamp"] = datetime.utcnow().isoformat()
+        return response
+    except Exception as e:
+        logger.error(f"Screenshot analysis failed for {request.url}: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/intel/risk-score", tags=["Phishing Intelligence"])
+async def calculate_risk_score(
+    url: str,
+    text_confidence: float = 0,
+    domain_risk: float = 0,
+    visual_risk: float = 0,
+):
+    """
+    Calculate combined phishing risk score
+
+    Manually provide component scores to get a combined risk assessment.
+    Useful for testing or when you have pre-computed component scores.
+    """
+    if not intel_available:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Phishing Intelligence Engine not available"
+        )
+
+    try:
+        text_result = {"confidence": text_confidence, "is_phishing": text_confidence > 0.5}
+        domain_intel_result = {"risk_score": domain_risk, "risk_indicators": []}
+        visual_result = {"visual_risk_score": visual_risk}
+
+        result = risk_scorer.calculate_risk(
+            url=url,
+            text_result=text_result,
+            domain_intel=domain_intel_result,
+            visual_result=visual_result,
+        )
+
+        response = result.to_dict()
+        response["url"] = url
+        response["timestamp"] = datetime.utcnow().isoformat()
+        return response
+    except Exception as e:
+        logger.error(f"Risk score calculation failed: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/intel-health", tags=["Phishing Intelligence"])
+async def intel_health():
+    """Check health status of Phishing Intelligence Engine"""
+    return {
+        "status": "healthy" if intel_available else "unavailable",
+        "intel_available": intel_available,
+        "components": {
+            "domain_intelligence": domain_intel is not None,
+            "risk_scorer": risk_scorer is not None,
+            "screenshot_analyzer": HAS_INTEL_ENGINE,
+        },
+        "v2_models_available": v2_available,
         "timestamp": datetime.utcnow().isoformat()
     }
 
