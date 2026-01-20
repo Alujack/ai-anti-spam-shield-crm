@@ -59,3 +59,8 @@ aiohttp>=3.9.0  # Async HTTP client for ASN lookups
 playwright>=1.40.0  # Headless browser for screenshots
 Pillow>=10.2.0  # Image processing
 # Note: After pip install, run: playwright install chromium
+
+# Phase 4: Voice Scam Real Detection
+librosa>=0.10.0  # Audio analysis and prosody extraction
+soundfile>=0.12.0  # Audio file I/O
+torchaudio>=2.2.0  # Audio processing with PyTorch

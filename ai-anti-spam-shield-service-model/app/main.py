@@ -27,6 +27,14 @@ try:
 except ImportError:
     HAS_INTEL_ENGINE = False
 
+# Import Phase 4: Voice Scam Real Detection
+try:
+    from audio.voice_scam_detector import VoiceScamDetector, VoiceScamResult
+    from audio.prosody_analyzer import ProsodyAnalyzer, get_scam_indicators
+    HAS_VOICE_V2 = True
+except ImportError:
+    HAS_VOICE_V2 = False
+
 # Initialize logger
 logger = setup_logging('ai-anti-spam-shield.model-service')
 
@@ -111,6 +119,25 @@ if HAS_INTEL_ENGINE:
         print("Phishing Intelligence Engine initialized successfully!")
     except Exception as e:
         print(f"Warning: Could not initialize Phishing Intelligence Engine: {e}")
+
+# Initialize Phase 4: Voice Scam Real Detection
+voice_detector = None
+voice_v2_available = False
+if HAS_VOICE_V2:
+    try:
+        # Use V2 text predictor if available, otherwise fall back to multi_predictor
+        text_pred = None
+        if v2_available and multi_predictor_v2:
+            text_pred = multi_predictor_v2.predictors.get('sms') if hasattr(multi_predictor_v2, 'predictors') else None
+
+        voice_detector = VoiceScamDetector(
+            text_predictor=text_pred,
+            use_gpu=False,  # Set to True if GPU available
+        )
+        voice_v2_available = True
+        print("Voice Scam Detector V2 initialized successfully!")
+    except Exception as e:
+        print(f"Warning: Could not initialize Voice Scam Detector V2: {e}")
 
 # Request/Response Models
 
@@ -316,6 +343,37 @@ class DeepURLResponse(BaseModel):
     recommendation: str
     details: dict
     timestamp: str
+
+
+# Phase 4: Voice Scam V2 Response Models
+class VoiceScamScores(BaseModel):
+    text: float
+    audio: float
+    prosody: float
+
+
+class ProsodyIndicators(BaseModel):
+    speaking_rate: str
+    variability: str
+    stress: str
+
+
+class VoiceV2PredictionResponse(BaseModel):
+    is_spam: bool
+    confidence: float
+    prediction: str
+    threat_level: str
+    transcribed_text: Optional[str]
+    scores: VoiceScamScores
+    prosody_analysis: Optional[dict]
+    indicators: List[dict]
+    warnings: List[str]
+    model_version: str
+
+
+class ProsodyAnalysisResponse(BaseModel):
+    prosody_features: dict
+    scam_indicators: List[dict]
 
 
 # Routes
@@ -1226,6 +1284,117 @@ async def intel_health():
             "screenshot_analyzer": HAS_INTEL_ENGINE,
         },
         "v2_models_available": v2_available,
+        "timestamp": datetime.utcnow().isoformat()
+    }
+
+
+# ============================================
+# PHASE 4: VOICE SCAM REAL DETECTION (V2)
+# ============================================
+
+@app.post("/predict-voice-v2", response_model=VoiceV2PredictionResponse, tags=["Voice V2"])
+async def predict_voice_v2(audio: UploadFile = File(...)):
+    """
+    Enhanced voice scam detection with audio analysis (V2)
+
+    Analyzes:
+    - Transcribed text content (40% weight)
+    - Audio embeddings using wav2vec2 (35% weight)
+    - Prosodic features: speaking rate, pauses, stress (25% weight)
+
+    Returns comprehensive scam assessment with:
+    - Combined confidence score
+    - Threat level (NONE, LOW, MEDIUM, HIGH, CRITICAL)
+    - Prosody analysis (speaking patterns)
+    - Scam indicators from multiple sources
+    - Elder-friendly warnings
+    """
+    if not voice_v2_available:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Voice V2 not available. Use /predict-voice for v1."
+        )
+
+    try:
+        # Read audio file
+        audio_bytes = await audio.read()
+
+        # Run detection
+        result = voice_detector.detect(audio_bytes)
+
+        return {
+            "is_spam": result.is_scam,
+            "confidence": result.confidence,
+            "prediction": "scam" if result.is_scam else "legitimate",
+            "threat_level": result.threat_level,
+            "transcribed_text": result.transcript,
+            "scores": {
+                "text": result.text_score,
+                "audio": result.audio_score,
+                "prosody": result.prosody_score,
+            },
+            "prosody_analysis": result.prosody_features,
+            "indicators": result.indicators,
+            "warnings": result.warnings,
+            "model_version": result.model_version,
+        }
+
+    except Exception as e:
+        logger.error(f"Voice V2 prediction failed: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/analyze-audio-prosody", response_model=ProsodyAnalysisResponse, tags=["Voice V2"])
+async def analyze_prosody(audio: UploadFile = File(...)):
+    """
+    Analyze prosodic features of audio
+
+    Returns speaking rate, pause patterns, pitch features, etc.
+    Useful for understanding HOW something is said, not just WHAT is said.
+
+    Prosodic features extracted:
+    - Speaking rate (words per minute)
+    - Pause patterns (count, duration, ratio)
+    - Pitch features (mean, std, range)
+    - Energy features (volume patterns)
+    - Derived indicators (urgency, scripted, stress)
+    """
+    if not HAS_VOICE_V2:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Voice V2 module not available."
+        )
+
+    try:
+        audio_bytes = await audio.read()
+
+        analyzer = ProsodyAnalyzer()
+        features = analyzer.analyze(audio_bytes)
+        indicators = get_scam_indicators(features)
+
+        return {
+            "prosody_features": features.to_dict(),
+            "scam_indicators": indicators,
+        }
+
+    except Exception as e:
+        logger.error(f"Prosody analysis failed: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/voice-v2-health", tags=["Voice V2"])
+async def voice_v2_health():
+    """Check health status of Voice V2 detection system"""
+    return {
+        "status": "healthy" if voice_v2_available else "unavailable",
+        "voice_v2_available": voice_v2_available,
+        "components": {
+            "voice_detector": voice_detector is not None,
+            "wav2vec2_embedder": voice_v2_available,
+            "prosody_analyzer": HAS_VOICE_V2,
+            "text_predictor": voice_detector.text_predictor is not None if voice_detector else False,
+        },
+        "model_version": voice_detector.model_version if voice_detector else "N/A",
         "timestamp": datetime.utcnow().isoformat()
     }
 
