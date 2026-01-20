@@ -11,6 +11,13 @@ import io
 from model.predictor import SpamPredictor, MultiModelPredictor
 from core.logging_config import setup_logging
 
+# Import V2 transformer-based predictor
+try:
+    from model.predictor_v2 import MultiModelPredictor as MultiModelPredictorV2
+    HAS_V2_MODELS = True
+except ImportError:
+    HAS_V2_MODELS = False
+
 # Initialize logger
 logger = setup_logging('ai-anti-spam-shield.model-service')
 
@@ -67,7 +74,21 @@ try:
 except Exception as e:
     print(f"Warning: Could not initialize multi-model predictor: {e}")
     print("Train separate models using: python model/train_separate_models.py --all")
-    multi_predictor = None
+
+# Initialize V2 transformer-based predictor (Phase 2)
+multi_predictor_v2 = None
+v2_available = False
+if HAS_V2_MODELS:
+    try:
+        multi_predictor_v2 = MultiModelPredictorV2(model_dir='model/onnx_models')
+        if multi_predictor_v2.is_loaded():
+            v2_available = True
+            print(f"V2 predictor initialized with models: {multi_predictor_v2.get_available_models()}")
+        else:
+            print("Warning: V2 predictor loaded but no models available")
+    except Exception as e:
+        print(f"Warning: Could not initialize V2 predictor: {e}")
+        print("Train and export V2 models using: python -m model.transformer_trainer && python -m model.onnx_exporter")
 
 # Request/Response Models
 
@@ -203,6 +224,27 @@ class BatchSpecializedRequest(BaseModel):
         default='auto',
         description="Model to use: sms, voice, phishing, or auto-detect"
     )
+
+
+# V2 Request/Response Models (Phase 2 - Transformer-based)
+class MessageRequest(BaseModel):
+    message: str = Field(..., min_length=1, max_length=10000,
+                         description="Text message to analyze")
+
+
+class V2PredictionResponse(BaseModel):
+    is_spam: bool
+    confidence: float
+    prediction: str
+    risk_level: str
+    category: Optional[str]
+    explanation: str
+    indicators: List[dict]
+    model_version: str
+
+
+class V2ElderModeResponse(V2PredictionResponse):
+    elder_warnings: List[str]
 
 
 # Routes
@@ -767,6 +809,141 @@ async def specialized_health():
             "voice": multi_predictor.is_model_loaded('voice') if multi_predictor else False,
             "phishing": multi_predictor.is_model_loaded('phishing') if multi_predictor else False
         },
+        "timestamp": datetime.utcnow().isoformat()
+    }
+
+
+# ============================================
+# V2 TRANSFORMER-BASED ENDPOINTS (Phase 2)
+# ============================================
+
+@app.post("/predict-v2", response_model=V2PredictionResponse, tags=["V2 Models"])
+async def predict_v2(request: MessageRequest):
+    """
+    Predict spam using transformer model (v2)
+
+    Returns enhanced response with:
+    - Risk level (NONE, LOW, MEDIUM, HIGH, CRITICAL)
+    - Scam category detection
+    - Human-readable explanation
+    - Indicator breakdown
+    """
+    if not v2_available:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="V2 model not available. Use /predict for v1."
+        )
+
+    try:
+        result = multi_predictor_v2.predict_sms(request.message)
+        return result
+    except Exception as e:
+        logger.error(f"V2 prediction error: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=str(e)
+        )
+
+
+@app.post("/predict-v2/elder-mode", response_model=V2ElderModeResponse, tags=["V2 Models"])
+async def predict_v2_elder(request: MessageRequest):
+    """
+    Predict with elder-friendly warnings
+
+    Includes additional safety warnings designed for users
+    who may be more vulnerable to scams
+    """
+    if not v2_available:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="V2 model not available."
+        )
+
+    try:
+        result = multi_predictor_v2.predict_with_elder_mode(
+            request.message,
+            model_type="sms"
+        )
+        return result
+    except Exception as e:
+        logger.error(f"V2 elder mode error: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=str(e)
+        )
+
+
+@app.post("/predict-phishing-v2-transformer", tags=["V2 Models"])
+async def predict_phishing_v2_transformer(request: PhishingRequest):
+    """
+    Predict phishing using transformer model (v2)
+
+    Uses DistilBERT-based model for improved accuracy
+    """
+    if not v2_available or "phishing" not in multi_predictor_v2.get_available_models():
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="V2 phishing model not available."
+        )
+
+    try:
+        result = multi_predictor_v2.predict_phishing(request.text)
+        return {
+            **result,
+            "is_phishing": result["is_spam"],
+            "phishing_type": result.get("category", "NONE"),
+            "threat_level": result["risk_level"],
+            "timestamp": datetime.utcnow().isoformat()
+        }
+    except Exception as e:
+        logger.error(f"V2 phishing prediction error: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=str(e)
+        )
+
+
+@app.get("/model/versions", tags=["V2 Models"])
+async def get_model_versions():
+    """Get available model versions and their status"""
+    versions = {
+        "v1": {
+            "sms": "TF-IDF + Logistic Regression",
+            "phishing": "TF-IDF + Random Forest",
+            "voice": "TF-IDF + Logistic Regression",
+            "status": "available" if multi_predictor and len(multi_predictor.models) > 0 else "unavailable",
+            "loaded_models": list(multi_predictor.models.keys()) if multi_predictor else []
+        }
+    }
+
+    if v2_available:
+        versions["v2"] = {
+            "sms": "DistilBERT (ONNX)",
+            "phishing": "DistilBERT (ONNX)",
+            "status": "available",
+            "loaded_models": multi_predictor_v2.get_available_models()
+        }
+    else:
+        versions["v2"] = {
+            "status": "unavailable",
+            "message": "Train and export V2 models to enable"
+        }
+
+    return {
+        "versions": versions,
+        "recommended": "v2" if v2_available else "v1",
+        "timestamp": datetime.utcnow().isoformat()
+    }
+
+
+@app.get("/v2-health", tags=["V2 Models"])
+async def v2_health():
+    """Check health status of V2 transformer models"""
+    return {
+        "status": "healthy" if v2_available else "unavailable",
+        "v2_available": v2_available,
+        "models_loaded": multi_predictor_v2.get_available_models() if v2_available else [],
+        "onnx_runtime": "enabled",
         "timestamp": datetime.utcnow().isoformat()
     }
 
