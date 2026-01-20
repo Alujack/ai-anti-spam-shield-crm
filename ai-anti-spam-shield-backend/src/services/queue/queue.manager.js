@@ -217,6 +217,107 @@ class QueueManager {
   }
 
   /**
+   * Add a feedback processing job to the queue
+   * @param {Object} data - Job data
+   * @param {string} data.feedbackId - Feedback ID to process
+   * @param {Object} options - Job options
+   * @returns {Promise<Object>} Job info
+   */
+  async addFeedbackJob(data, options = {}) {
+    const queue = getQueue(QUEUES.FEEDBACK);
+
+    const jobData = {
+      feedbackId: data.feedbackId,
+      timestamp: Date.now(),
+    };
+
+    const job = await queue.add('process-feedback', jobData, {
+      priority: options.priority || 3,
+      ...options,
+    });
+
+    logger.info('Feedback job added', {
+      jobId: job.id,
+      feedbackId: data.feedbackId,
+    });
+
+    return {
+      jobId: job.id,
+      queue: QUEUES.FEEDBACK,
+      status: 'queued',
+      createdAt: new Date().toISOString(),
+    };
+  }
+
+  /**
+   * Add a model retraining job to the queue
+   * @param {Object} data - Job data
+   * @param {string} data.modelType - Type of model to retrain (sms, phishing, voice, all)
+   * @param {string} data.triggeredBy - What triggered the retraining
+   * @param {Object} options - Job options
+   * @returns {Promise<Object>} Job info
+   */
+  async addRetrainingJob(data, options = {}) {
+    const queue = getQueue(QUEUES.RETRAINING);
+
+    const jobData = {
+      modelType: data.modelType || 'all',
+      triggeredBy: data.triggeredBy || 'manual',
+      sampleCount: data.sampleCount || 0,
+      timestamp: Date.now(),
+    };
+
+    const job = await queue.add('model-retraining', jobData, {
+      priority: options.priority || 4,
+      attempts: 1, // Don't auto-retry retraining
+      ...options,
+    });
+
+    logger.info('Retraining job added', {
+      jobId: job.id,
+      modelType: data.modelType,
+      triggeredBy: data.triggeredBy,
+    });
+
+    return {
+      jobId: job.id,
+      queue: QUEUES.RETRAINING,
+      status: 'queued',
+      createdAt: new Date().toISOString(),
+    };
+  }
+
+  /**
+   * Trigger model retraining if threshold is met
+   * @param {number} threshold - Minimum samples required
+   * @returns {Promise<Object|null>} Job info if triggered, null otherwise
+   */
+  async triggerRetrainingIfNeeded(threshold = 50) {
+    const prisma = require('../../config/database');
+
+    const approvedCount = await prisma.userFeedback.count({
+      where: {
+        status: 'approved',
+        includedInTraining: false,
+      },
+    });
+
+    if (approvedCount >= threshold) {
+      logger.info('Retraining threshold reached', {
+        approvedCount,
+        threshold,
+      });
+
+      return this.addRetrainingJob({
+        triggeredBy: 'threshold',
+        sampleCount: approvedCount,
+      });
+    }
+
+    return null;
+  }
+
+  /**
    * Hash message for caching/deduplication
    * @param {string} message - Message to hash
    * @returns {string} Hash

@@ -1399,6 +1399,356 @@ async def voice_v2_health():
     }
 
 
+# ============================================
+# PHASE 5: CONTINUOUS LEARNING & MODEL REGISTRY
+# ============================================
+
+# Import Phase 5: Continuous Learning
+try:
+    from registry.model_registry import ModelRegistry
+    from retraining.feedback_collector import FeedbackCollector, prepare_training_data
+    from retraining.incremental_trainer import IncrementalTrainer
+    from retraining.scheduler import WeeklyRetrainingScheduler
+    HAS_CONTINUOUS_LEARNING = True
+except ImportError:
+    HAS_CONTINUOUS_LEARNING = False
+    logger.warning("Continuous Learning module not available")
+
+# Initialize Model Registry
+model_registry = None
+retraining_scheduler = None
+if HAS_CONTINUOUS_LEARNING:
+    try:
+        model_registry = ModelRegistry(storage_path='./model_registry')
+        logger.info("Model Registry initialized")
+    except Exception as e:
+        logger.warning(f"Could not initialize Model Registry: {e}")
+
+
+# Phase 5 Request/Response Models
+class RetrainingRequest(BaseModel):
+    model_type: str = Field(default="sms", description="Model type to retrain: sms, phishing, voice")
+    min_samples: int = Field(default=50, description="Minimum samples required")
+    force: bool = Field(default=False, description="Force retraining even if insufficient samples")
+
+
+class RetrainingResponse(BaseModel):
+    status: str
+    message: str
+    details: Optional[dict] = None
+    timestamp: str
+
+
+class ModelVersionResponse(BaseModel):
+    model_type: str
+    version: str
+    status: str
+    metrics: dict
+    trained_at: str
+    deployed_at: Optional[str]
+
+
+class TrainingDataRequest(BaseModel):
+    texts: List[str] = Field(..., min_items=1, description="List of text samples")
+    labels: List[int] = Field(..., min_items=1, description="List of labels (0 or 1)")
+    model_type: str = Field(default="sms", description="Model type to train")
+
+
+@app.get("/models/versions", tags=["Model Registry"])
+async def get_all_model_versions():
+    """
+    Get all registered model versions
+
+    Returns versions for all model types with their metrics and deployment status.
+    """
+    if not HAS_CONTINUOUS_LEARNING or model_registry is None:
+        return {
+            "status": "unavailable",
+            "message": "Model Registry not available",
+            "versions": {},
+            "timestamp": datetime.utcnow().isoformat()
+        }
+
+    versions = {}
+    for model_type in ["sms", "phishing", "voice"]:
+        versions[model_type] = {
+            "deployed": None,
+            "all": [],
+        }
+
+        deployed = model_registry.get_deployed_version(model_type)
+        if deployed:
+            versions[model_type]["deployed"] = deployed.to_dict()
+
+        all_versions = model_registry.get_all_versions(model_type)
+        versions[model_type]["all"] = [v.to_dict() for v in all_versions]
+
+    return {
+        "status": "success",
+        "versions": versions,
+        "stats": model_registry.get_registry_stats(),
+        "timestamp": datetime.utcnow().isoformat()
+    }
+
+
+@app.get("/models/versions/{model_type}", tags=["Model Registry"])
+async def get_model_versions_by_type(model_type: str):
+    """
+    Get all versions for a specific model type
+
+    - **model_type**: sms, phishing, or voice
+    """
+    if not HAS_CONTINUOUS_LEARNING or model_registry is None:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Model Registry not available"
+        )
+
+    versions = model_registry.get_all_versions(model_type)
+    deployed = model_registry.get_deployed_version(model_type)
+
+    return {
+        "model_type": model_type,
+        "deployed": deployed.to_dict() if deployed else None,
+        "versions": [v.to_dict() for v in versions],
+        "count": len(versions),
+        "timestamp": datetime.utcnow().isoformat()
+    }
+
+
+@app.get("/models/history", tags=["Model Registry"])
+async def get_deployment_history(model_type: str = None):
+    """
+    Get model deployment history
+
+    - **model_type**: Optional filter by model type
+    """
+    if not HAS_CONTINUOUS_LEARNING or model_registry is None:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Model Registry not available"
+        )
+
+    history = model_registry.get_version_history(model_type)
+
+    return {
+        "history": history,
+        "count": len(history),
+        "timestamp": datetime.utcnow().isoformat()
+    }
+
+
+@app.post("/models/rollback", tags=["Model Registry"])
+async def rollback_model(model_type: str, version: str = None):
+    """
+    Rollback to a previous model version
+
+    - **model_type**: Model type to rollback
+    - **version**: Target version (optional, defaults to previous)
+    """
+    if not HAS_CONTINUOUS_LEARNING or model_registry is None:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Model Registry not available"
+        )
+
+    try:
+        success = await model_registry.rollback(model_type, version)
+        if success:
+            return {
+                "status": "success",
+                "message": f"Rolled back {model_type} to {version or 'previous version'}",
+                "timestamp": datetime.utcnow().isoformat()
+            }
+        else:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Rollback failed - no previous version available"
+            )
+    except Exception as e:
+        logger.error(f"Rollback failed: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/retrain", response_model=RetrainingResponse, tags=["Continuous Learning"])
+async def trigger_retraining(request: RetrainingRequest):
+    """
+    Trigger model retraining with new data
+
+    This endpoint is called by the backend when approved feedback
+    reaches the threshold, or can be triggered manually.
+    """
+    if not HAS_CONTINUOUS_LEARNING:
+        return {
+            "status": "unavailable",
+            "message": "Continuous Learning module not available",
+            "details": None,
+            "timestamp": datetime.utcnow().isoformat()
+        }
+
+    try:
+        # Get backend URL from environment
+        backend_url = os.getenv("BACKEND_URL", "http://localhost:3000")
+
+        # Initialize scheduler
+        model_paths = {
+            "sms": "model/onnx_models/sms" if v2_available else "model/trained_models/sms",
+            "phishing": "model/onnx_models/phishing" if v2_available else "model/trained_models/phishing",
+            "voice": "model/onnx_models/voice" if v2_available else "model/trained_models/voice",
+        }
+
+        scheduler = WeeklyRetrainingScheduler(
+            backend_url=backend_url,
+            model_paths=model_paths,
+            registry_path="./model_registry",
+            min_samples=request.min_samples,
+        )
+
+        # Run retraining
+        result = await scheduler.run_weekly_job()
+
+        return {
+            "status": result.get("status", "completed"),
+            "message": f"Retraining completed for {request.model_type}",
+            "details": result,
+            "timestamp": datetime.utcnow().isoformat()
+        }
+
+    except Exception as e:
+        logger.error(f"Retraining failed: {e}")
+        return {
+            "status": "error",
+            "message": str(e),
+            "details": None,
+            "timestamp": datetime.utcnow().isoformat()
+        }
+
+
+@app.post("/retrain/direct", tags=["Continuous Learning"])
+async def retrain_with_data(request: TrainingDataRequest):
+    """
+    Directly retrain model with provided data
+
+    Used for testing or when training data is provided directly
+    rather than fetched from the feedback API.
+    """
+    if not HAS_CONTINUOUS_LEARNING:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Continuous Learning module not available"
+        )
+
+    if len(request.texts) != len(request.labels):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="texts and labels must have the same length"
+        )
+
+    if len(request.texts) < 10:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="At least 10 samples required for training"
+        )
+
+    try:
+        # Get model path
+        model_paths = {
+            "sms": "model/onnx_models/sms" if v2_available else "model/trained_models/sms",
+            "phishing": "model/onnx_models/phishing" if v2_available else "model/trained_models/phishing",
+            "voice": "model/onnx_models/voice" if v2_available else "model/trained_models/voice",
+        }
+
+        model_path = model_paths.get(request.model_type)
+        if not model_path or not os.path.exists(model_path):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Model not found for type: {request.model_type}"
+            )
+
+        # Initialize trainer
+        trainer = IncrementalTrainer(
+            model_path=model_path,
+            model_type=request.model_type,
+        )
+
+        # Train
+        result = trainer.train_on_feedback(
+            texts=request.texts,
+            labels=request.labels,
+        )
+
+        # Register version if successful
+        if result["success"] and model_registry:
+            await model_registry.register_version(
+                model_type=request.model_type,
+                version=result["version"],
+                model_path=result["model_path"],
+                metrics=result["new_metrics"],
+                changelog=f"Direct training with {len(request.texts)} samples",
+            )
+
+            # Deploy if improved
+            if result["improved"]:
+                await model_registry.deploy_version(
+                    request.model_type,
+                    result["version"],
+                )
+
+        return {
+            "status": "success" if result["success"] else "failed",
+            "version": result["version"],
+            "improved": result["improved"],
+            "baseline_metrics": result["baseline_metrics"],
+            "new_metrics": result["new_metrics"],
+            "model_path": result["model_path"],
+            "timestamp": datetime.utcnow().isoformat()
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Direct training failed: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/retrain/status", tags=["Continuous Learning"])
+async def get_retraining_status():
+    """
+    Get status of the retraining system
+
+    Returns information about:
+    - Available model types
+    - Registry statistics
+    - Last retraining run (if any)
+    """
+    return {
+        "status": "available" if HAS_CONTINUOUS_LEARNING else "unavailable",
+        "continuous_learning_enabled": HAS_CONTINUOUS_LEARNING,
+        "model_registry_enabled": model_registry is not None,
+        "v2_models_available": v2_available,
+        "model_types": ["sms", "phishing", "voice"],
+        "registry_stats": model_registry.get_registry_stats() if model_registry else None,
+        "timestamp": datetime.utcnow().isoformat()
+    }
+
+
+@app.get("/continuous-learning-health", tags=["Continuous Learning"])
+async def continuous_learning_health():
+    """Check health status of Continuous Learning system"""
+    return {
+        "status": "healthy" if HAS_CONTINUOUS_LEARNING else "unavailable",
+        "continuous_learning_available": HAS_CONTINUOUS_LEARNING,
+        "components": {
+            "model_registry": model_registry is not None,
+            "feedback_collector": HAS_CONTINUOUS_LEARNING,
+            "incremental_trainer": HAS_CONTINUOUS_LEARNING,
+            "retraining_scheduler": HAS_CONTINUOUS_LEARNING,
+        },
+        "v2_models_available": v2_available,
+        "timestamp": datetime.utcnow().isoformat()
+    }
+
+
 # Run server
 if __name__ == "__main__":
     port = int(os.getenv("PORT", 8000))

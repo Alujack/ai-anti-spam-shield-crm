@@ -39,17 +39,17 @@ model User {
 // SCAN HISTORY (Enhanced)
 // ===========================================
 model ScanHistory {
-  id               String   @id @default(uuid())
-  userId           String
-  message          String   // Will be encrypted in Phase 8
-  messageHash      String?  // For deduplication
-  isSpam           Boolean
-  confidence       Float
-  prediction       String
-  scanType         String?  // text, voice
-  details          String?  // JSON string
-  modelVersion     String?  // Track which model version was used
-  scannedAt        DateTime @default(now())
+  id           String   @id @default(uuid())
+  userId       String
+  message      String // Will be encrypted in Phase 8
+  messageHash  String? // For deduplication
+  isSpam       Boolean
+  confidence   Float
+  prediction   String
+  scanType     String? // text, voice
+  details      String? // JSON string
+  modelVersion String? // Track which model version was used
+  scannedAt    DateTime @default(now())
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
@@ -70,11 +70,11 @@ model PhishingScanHistory {
   inputUrl      String?
   isPhishing    Boolean
   confidence    Float
-  phishingType  String   // EMAIL, SMS, URL, NONE
-  threatLevel   String   // CRITICAL, HIGH, MEDIUM, LOW, NONE
-  indicators    String   // JSON array of indicators
-  urlsAnalyzed  String?  // JSON array of URLs
-  brandDetected String?  // Detected brand impersonation
+  phishingType  String // EMAIL, SMS, URL, NONE
+  threatLevel   String // CRITICAL, HIGH, MEDIUM, LOW, NONE
+  indicators    String // JSON array of indicators
+  urlsAnalyzed  String? // JSON array of URLs
+  brandDetected String? // Detected brand impersonation
   modelVersion  String?
   scannedAt     DateTime @default(now())
 
@@ -94,7 +94,7 @@ model Report {
   id          String    @id @default(uuid())
   userId      String
   messageText String
-  reportType  String    // SPAM, PHISHING, SCAM, SUSPICIOUS, OTHER
+  reportType  String // SPAM, PHISHING, SCAM, SUSPICIOUS, OTHER
   description String?
   url         String?
   phoneNumber String?
@@ -120,13 +120,13 @@ model Report {
 model ScanJob {
   id          String    @id @default(uuid())
   userId      String?
-  type        String    // text, voice, url
+  type        String // text, voice, url
   status      String    @default("pending") // pending, processing, completed, failed
   priority    Int       @default(0)
-  input       String    // Encrypted input data
-  inputHash   String    // For cache lookup
-  result      Json?     // Scan result
-  error       String?   // Error message if failed
+  input       String // Encrypted input data
+  inputHash   String // For cache lookup
+  result      Json? // Scan result
+  error       String? // Error message if failed
   attempts    Int       @default(0)
   createdAt   DateTime  @default(now())
   startedAt   DateTime?
@@ -151,8 +151,8 @@ model UserFeedback {
   scanHistoryId      String?
   phishingHistoryId  String?
   originalPrediction String
-  actualLabel        String    // spam, ham, phishing, safe
-  feedbackType       String    // false_positive, false_negative, confirmed
+  actualLabel        String // spam, ham, phishing, safe
+  feedbackType       String // false_positive, false_negative, confirmed
   userComment        String?
   status             String    @default("pending") // pending, approved, rejected
   reviewedBy         String?
@@ -160,7 +160,7 @@ model UserFeedback {
   createdAt          DateTime  @default(now())
 
   // Retraining pipeline
-  includedInTraining Boolean  @default(false)
+  includedInTraining Boolean @default(false)
   trainingBatch      String?
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -178,14 +178,14 @@ model UserFeedback {
 // ===========================================
 model ModelVersion {
   id            String    @id @default(uuid())
-  modelType     String    // sms, voice, phishing
-  version       String    // e.g., "v2.1.0"
-  modelPath     String    // Path to model file
-  metrics       Json      // {accuracy, recall, precision, f1}
+  modelType     String // sms, voice, phishing
+  version       String // e.g., "v2.1.0"
+  modelPath     String // Path to model file
+  metrics       Json // {accuracy, recall, precision, f1}
   trainedAt     DateTime
   deployedAt    DateTime?
-  status        String    // training, testing, deployed, rolled_back
-  feedbackBatch String?   // Reference to feedback batch used for training
+  status        String // training, testing, deployed, rolled_back
+  feedbackBatch String? // Reference to feedback batch used for training
   changelog     String?
   createdBy     String?
 
