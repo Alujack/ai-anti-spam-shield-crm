@@ -403,6 +403,26 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                     ),
                     onTap: null,
                   ),
+                  _buildSettingTile(
+                    icon: Icons.elderly,
+                    title: 'Elder Mode',
+                    isDark: isDark,
+                    trailing: Switch(
+                      value: settingsState.elderModeEnabled,
+                      onChanged: (value) {
+                        ref.read(appSettingsProvider.notifier).setElderModeEnabled(value);
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text(value
+                              ? 'Elder mode enabled - Simplified warnings'
+                              : 'Elder mode disabled'),
+                            backgroundColor: AppColors.success,
+                          ),
+                        );
+                      },
+                    ),
+                    onTap: null,
+                  ),
                 ],
               ),
             ),

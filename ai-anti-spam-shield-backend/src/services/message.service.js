@@ -53,14 +53,119 @@ class MessageService {
         transcribed: response.data.transcribed_text 
       });
 
+      /**
+       * Confidence Interpretation:
+       * - AI model returns "spam confidence" (how likely it's spam)
+       * - High raw confidence (e.g., 0.85) = 85% likely to be SPAM
+       * - Low raw confidence (e.g., 0.15) = 15% likely to be spam = 85% likely to be SAFE
+       *
+       * Detection Logic:
+       * - If spam confidence >= 0.65 (65%) → SPAM DETECTED with that confidence
+       * - If spam confidence < 0.65 → SAFE with (1 - spam_confidence) as safety confidence
+       */
+      const DETECTION_THRESHOLD = 0.65;
+      const rawSpamConfidence = response.data.confidence || response.data.probability || 0;
+
+      // Determine if it's spam based on the spam confidence
+      const isSpam = rawSpamConfidence >= DETECTION_THRESHOLD;
+
+      // Calculate display confidence:
+      // - If spam: show spam confidence (e.g., 85% spam)
+      // - If safe: show safety confidence (e.g., 1 - 0.15 = 85% safe)
+      const displayConfidence = isSpam
+        ? rawSpamConfidence
+        : (1 - rawSpamConfidence);
+
+      // Generate detailed danger causes based on analysis
+      const dangerCauses = [];
+      if (isSpam) {
+        dangerCauses.push({
+          type: 'spam_detected',
+          title: 'Spam Detected',
+          description: `Our AI detected this as spam with ${(rawSpamConfidence * 100).toFixed(1)}% confidence. This exceeds our ${(DETECTION_THRESHOLD * 100)}% threshold for spam detection.`,
+          severity: rawSpamConfidence >= 0.85 ? 'critical' : rawSpamConfidence >= 0.75 ? 'high' : 'medium'
+        });
+
+        if (rawSpamConfidence >= 0.85) {
+          dangerCauses.push({
+            type: 'high_spam_confidence',
+            title: 'Very High Spam Probability',
+            description: 'The AI is highly confident this is spam. This voice message contains multiple strong indicators of spam or scam content.',
+            severity: 'critical'
+          });
+        }
+
+        if (rawSpamConfidence >= 0.65 && rawSpamConfidence < 0.85) {
+          dangerCauses.push({
+            type: 'moderate_spam_confidence',
+            title: 'Moderate Spam Probability',
+            description: 'The message shows significant spam characteristics. While not all indicators are present, there are enough suspicious elements.',
+            severity: 'high'
+          });
+        }
+
+        // Add causes based on features if available
+        if (response.data.details?.features) {
+          const features = response.data.details.features;
+          if (features.has_url) {
+            dangerCauses.push({
+              type: 'contains_url',
+              title: 'Contains External Links',
+              description: 'This voice message mentions URLs or web links. Be cautious about clicking unknown links as they may lead to phishing sites.',
+              severity: 'medium'
+            });
+          }
+          if (features.urgency_words) {
+            dangerCauses.push({
+              type: 'urgency_language',
+              title: 'Urgency Tactics Detected',
+              description: 'The message uses urgent language like "act now", "limited time", or "immediately". Scammers often use urgency to pressure victims into quick decisions.',
+              severity: 'high'
+            });
+          }
+          if (features.spam_keywords) {
+            dangerCauses.push({
+              type: 'spam_keywords',
+              title: 'Spam Keywords Detected',
+              description: 'Common spam keywords were found such as "win", "prize", "free", "congratulations", or "selected". These are typical in lottery and prize scams.',
+              severity: 'high'
+            });
+          }
+          if (features.currency_symbols) {
+            dangerCauses.push({
+              type: 'money_reference',
+              title: 'Money References Detected',
+              description: 'The message contains currency symbols or money amounts. Be wary of unsolicited messages discussing money or financial rewards.',
+              severity: 'medium'
+            });
+          }
+          if (features.has_phone) {
+            dangerCauses.push({
+              type: 'phone_number',
+              title: 'Phone Number Detected',
+              description: 'The message contains phone numbers. Scammers often include callback numbers to premium rate lines or to collect personal information.',
+              severity: 'medium'
+            });
+          }
+        }
+      }
+
       const result = {
-        is_spam: response.data.is_spam || response.data.prediction === 'spam',
-        confidence: response.data.confidence || response.data.probability || 0,
-        prediction: response.data.prediction || (response.data.is_spam ? 'spam' : 'ham'),
+        is_spam: isSpam,
+        confidence: displayConfidence,
+        raw_spam_confidence: rawSpamConfidence,
+        prediction: isSpam ? 'spam' : 'ham',
         message: response.data.transcribed_text,
         transcribed_text: response.data.transcribed_text,
         timestamp: new Date().toISOString(),
-        ...(response.data.details && { details: response.data.details })
+        is_safe: !isSpam,
+        detection_threshold: DETECTION_THRESHOLD,
+        danger_causes: dangerCauses,
+        risk_level: isSpam
+          ? (rawSpamConfidence >= 0.85 ? 'CRITICAL' : rawSpamConfidence >= 0.75 ? 'HIGH' : 'MEDIUM')
+          : 'NONE',
+        confidence_label: isSpam ? 'Spam Confidence' : 'Safety Confidence',
+        ...(response.data.details && { details: { ...response.data.details, danger_causes: dangerCauses } })
       };
 
       // Save to history if user is authenticated (with 'voice' scan type)
@@ -151,13 +256,126 @@ class MessageService {
         status: response.status 
       });
 
+      /**
+       * Confidence Interpretation:
+       * - AI model returns "spam confidence" (how likely it's spam)
+       * - High raw confidence (e.g., 0.85) = 85% likely to be SPAM
+       * - Low raw confidence (e.g., 0.15) = 15% likely to be spam = 85% likely to be SAFE
+       *
+       * Detection Logic:
+       * - If spam confidence >= 0.65 (65%) → SPAM DETECTED with that confidence
+       * - If spam confidence < 0.65 → SAFE with (1 - spam_confidence) as safety confidence
+       */
+      const DETECTION_THRESHOLD = 0.65;
+      const rawSpamConfidence = response.data.confidence || response.data.probability || 0;
+
+      // Determine if it's spam based on the spam confidence
+      const isSpam = rawSpamConfidence >= DETECTION_THRESHOLD;
+
+      // Calculate display confidence:
+      // - If spam: show spam confidence (e.g., 85% spam)
+      // - If safe: show safety confidence (e.g., 1 - 0.15 = 85% safe)
+      const displayConfidence = isSpam
+        ? rawSpamConfidence
+        : (1 - rawSpamConfidence);
+
+      // Generate detailed danger causes based on analysis
+      const dangerCauses = [];
+      if (isSpam) {
+        dangerCauses.push({
+          type: 'spam_detected',
+          title: 'Spam Detected',
+          description: `Our AI detected this as spam with ${(rawSpamConfidence * 100).toFixed(1)}% confidence. This exceeds our ${(DETECTION_THRESHOLD * 100)}% threshold for spam detection.`,
+          severity: rawSpamConfidence >= 0.85 ? 'critical' : rawSpamConfidence >= 0.75 ? 'high' : 'medium'
+        });
+
+        if (rawSpamConfidence >= 0.85) {
+          dangerCauses.push({
+            type: 'high_spam_confidence',
+            title: 'Very High Spam Probability',
+            description: 'The AI is highly confident this is spam. This message contains multiple strong indicators of spam or scam content.',
+            severity: 'critical'
+          });
+        }
+
+        if (rawSpamConfidence >= 0.65 && rawSpamConfidence < 0.85) {
+          dangerCauses.push({
+            type: 'moderate_spam_confidence',
+            title: 'Moderate Spam Probability',
+            description: 'The message shows significant spam characteristics. While not all indicators are present, there are enough suspicious elements.',
+            severity: 'high'
+          });
+        }
+
+        // Add causes based on features if available
+        if (response.data.details?.features) {
+          const features = response.data.details.features;
+          if (features.has_url) {
+            dangerCauses.push({
+              type: 'contains_url',
+              title: 'Contains External Links',
+              description: 'This message contains URLs or web links. Be cautious about clicking unknown links as they may lead to phishing sites or download malware.',
+              severity: 'medium'
+            });
+          }
+          if (features.has_email) {
+            dangerCauses.push({
+              type: 'contains_email',
+              title: 'Contains Email Address',
+              description: 'The message contains email addresses. Scammers often include fake contact emails to collect personal information or send follow-up scams.',
+              severity: 'low'
+            });
+          }
+          if (features.urgency_words) {
+            dangerCauses.push({
+              type: 'urgency_language',
+              title: 'Urgency Tactics Detected',
+              description: 'The message uses urgent language like "act now", "limited time", "expire", or "immediately". Scammers use urgency to pressure victims into making hasty decisions without thinking.',
+              severity: 'high'
+            });
+          }
+          if (features.spam_keywords) {
+            dangerCauses.push({
+              type: 'spam_keywords',
+              title: 'Spam Keywords Detected',
+              description: 'Common spam keywords were found such as "win", "prize", "free", "congratulations", "selected", or "lottery". These are typical indicators of lottery scams, fake prize notifications, or promotional spam.',
+              severity: 'high'
+            });
+          }
+          if (features.currency_symbols) {
+            dangerCauses.push({
+              type: 'money_reference',
+              title: 'Money References Detected',
+              description: 'The message contains currency symbols or money amounts. Be extremely wary of unsolicited messages discussing money, financial rewards, or requesting payments.',
+              severity: 'medium'
+            });
+          }
+          if (features.has_phone) {
+            dangerCauses.push({
+              type: 'phone_number',
+              title: 'Phone Number Detected',
+              description: 'The message contains phone numbers. Scammers often include callback numbers that may be premium rate lines or used to collect your personal information through social engineering.',
+              severity: 'medium'
+            });
+          }
+        }
+      }
+
       const result = {
-        is_spam: response.data.is_spam || response.data.prediction === 'spam',
-        confidence: response.data.confidence || response.data.probability || 0,
-        prediction: response.data.prediction || (response.data.is_spam ? 'spam' : 'ham'),
+        is_spam: isSpam,
+        confidence: displayConfidence,
+        raw_spam_confidence: rawSpamConfidence,
+        prediction: isSpam ? 'spam' : 'ham',
         message: messageText,
         timestamp: new Date().toISOString(),
-        ...(response.data.details && { details: response.data.details })
+        is_safe: !isSpam,
+        detection_threshold: DETECTION_THRESHOLD,
+        danger_causes: dangerCauses,
+        risk_level: isSpam
+          ? (rawSpamConfidence >= 0.85 ? 'CRITICAL' : rawSpamConfidence >= 0.75 ? 'HIGH' : 'MEDIUM')
+          : 'NONE',
+        confidence_label: isSpam ? 'Spam Confidence' : 'Safety Confidence',
+        ...(response.data.details && { details: { ...response.data.details, danger_causes: dangerCauses } })
       };
 
       // Save to history if user is authenticated

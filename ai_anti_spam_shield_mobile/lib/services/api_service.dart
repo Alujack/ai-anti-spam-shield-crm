@@ -1,9 +1,12 @@
 import 'package:dio/dio.dart';
 import '../models/user.dart';
 import '../models/scan_result.dart';
+import '../models/scan_result_v2.dart';
 import '../models/scan_history.dart';
 import '../models/report.dart';
 import '../models/statistics.dart';
+import '../models/feedback.dart';
+import '../models/domain_intel.dart';
 import '../utils/constants.dart';
 import 'storage_service.dart';
 import 'mock_api_service.dart';
@@ -542,6 +545,275 @@ class ApiService {
         phishingStats: PhishingStatistics.fromJson(results[1].data['data']),
         reportSummary: ReportSummary.fromJson(results[2].data['data']),
       );
+    } catch (e) {
+      rethrow;
+    }
+  }
+
+  // ============================================
+  // FEEDBACK ENDPOINTS (Phase 5: Continuous Learning)
+  // ============================================
+
+  /// Submit feedback on a scan result
+  Future<Feedback> submitFeedback({
+    required String scanId,
+    required String feedbackType, // false_positive, false_negative, confirmed
+    String scanType = 'text', // text, phishing, voice
+    String? actualLabel,
+    String? comment,
+  }) async {
+    if (_isDemoMode) {
+      // Return mock feedback in demo mode
+      return Feedback(
+        id: 'demo_${DateTime.now().millisecondsSinceEpoch}',
+        scanHistoryId: scanType != 'phishing' ? scanId : null,
+        phishingHistoryId: scanType == 'phishing' ? scanId : null,
+        originalPrediction: 'spam',
+        actualLabel: actualLabel ?? 'ham',
+        feedbackType: feedbackType,
+        userComment: comment,
+        status: 'pending',
+        createdAt: DateTime.now(),
+      );
+    }
+    try {
+      final response = await _dio.post('/feedback', data: {
+        'scanId': scanId,
+        'scanType': scanType,
+        'feedbackType': feedbackType,
+        if (actualLabel != null) 'actualLabel': actualLabel,
+        if (comment != null) 'comment': comment,
+      });
+      return Feedback.fromJson(response.data['data']);
+    } catch (e) {
+      rethrow;
+    }
+  }
+
+  /// Get user's feedback history
+  Future<List<Feedback>> getMyFeedback({int page = 1, int limit = 20}) async {
+    if (_isDemoMode) {
+      return [];
+    }
+    try {
+      final response = await _dio.get('/feedback/my', queryParameters: {
+        'page': page,
+        'limit': limit,
+      });
+      final data = response.data['data'];
+      if (data is List) {
+        return data.map((f) => Feedback.fromJson(f)).toList();
+      }
+      return (data['feedback'] as List?)?.map((f) => Feedback.fromJson(f)).toList() ?? [];
+    } catch (e) {
+      rethrow;
+    }
+  }
+
+  /// Get feedback statistics
+  Future<FeedbackStats> getFeedbackStats() async {
+    if (_isDemoMode) {
+      return FeedbackStats(
+        byStatus: {'pending': 0, 'approved': 0, 'rejected': 0},
+        byType: {'false_positive': 0, 'false_negative': 0, 'confirmed': 0},
+        rates: FeedbackRates(falsePositiveRate: 0, falseNegativeRate: 0),
+        pendingCount: 0,
+      );
+    }
+    try {
+      final response = await _dio.get('/feedback/stats');
+      return FeedbackStats.fromJson(response.data['data']);
+    } catch (e) {
+      rethrow;
+    }
+  }
+
+  // ============================================
+  // V2 ENHANCED SCAN ENDPOINTS
+  // ============================================
+
+  /// Scan text with V2 model (enhanced with risk levels, categories)
+  Future<ScanResultV2> scanTextV2(String message, {bool elderMode = false}) async {
+    if (_isDemoMode) {
+      // Return enhanced mock result
+      final isSpam = message.toLowerCase().contains('win') ||
+                     message.toLowerCase().contains('urgent') ||
+                     message.toLowerCase().contains('click');
+      return ScanResultV2(
+        isSpam: isSpam,
+        confidence: isSpam ? 0.87 : 0.12,
+        prediction: isSpam ? 'spam' : 'ham',
+        message: message,
+        timestamp: DateTime.now().toIso8601String(),
+        historyId: 'demo_${DateTime.now().millisecondsSinceEpoch}',
+        riskLevel: isSpam ? RiskLevel.high : RiskLevel.none,
+        scamCategory: isSpam ? ScamCategory.urgencyScam : null,
+        indicators: isSpam ? [
+          ThreatIndicator(
+            type: 'urgency',
+            source: 'text_analysis',
+            description: 'Message contains urgency language',
+            severity: 'medium',
+          ),
+        ] : [],
+        elderWarnings: isSpam && elderMode ? [
+          'Be cautious - this message shows signs of a scam.',
+          'Never share personal information with unknown senders.',
+        ] : [],
+        modelVersion: 'v2.0.0-demo',
+      );
+    }
+    try {
+      final response = await _dio.post('/messages/scan-text', data: {
+        'message': message,
+        'elderMode': elderMode,
+        'useV2': true,
+      });
+      return ScanResultV2.fromJson(response.data);
+    } catch (e) {
+      rethrow;
+    }
+  }
+
+  /// Scan voice with V2 model (enhanced with prosody analysis)
+  Future<ScanResultV2> scanVoiceV2(String audioPath) async {
+    if (_isDemoMode) {
+      return ScanResultV2(
+        isSpam: false,
+        confidence: 0.15,
+        prediction: 'ham',
+        message: 'Demo voice message transcription',
+        timestamp: DateTime.now().toIso8601String(),
+        historyId: 'demo_voice_${DateTime.now().millisecondsSinceEpoch}',
+        riskLevel: RiskLevel.none,
+        transcribedText: 'This is a demo transcription of the voice message.',
+        isVoiceScan: true,
+        prosodyAnalysis: ProsodyAnalysis(
+          durationSeconds: 5.2,
+          estimatedWpm: 145,
+          numPauses: 3,
+          totalPauseDuration: 0.8,
+          avgPauseDuration: 0.27,
+          pauseRatio: 0.15,
+          pitchMean: 180,
+          pitchStd: 35,
+          pitchRange: 120,
+          energyMean: 0.05,
+          energyStd: 0.02,
+          indicators: ProsodyIndicators(
+            speakingRate: 'normal',
+            variability: 'normal',
+            stress: 'normal',
+          ),
+        ),
+        voiceScores: VoiceScores(text: 0.1, audio: 0.15, prosody: 0.12),
+        modelVersion: 'voice-v2.0.0-demo',
+      );
+    }
+    try {
+      final filename = audioPath.split('/').last;
+      final extension = filename.split('.').last.toLowerCase();
+      String contentType;
+      switch (extension) {
+        case 'm4a':
+        case 'aac':
+          contentType = 'audio/mp4';
+          break;
+        case 'mp3':
+          contentType = 'audio/mpeg';
+          break;
+        case 'wav':
+          contentType = 'audio/wav';
+          break;
+        default:
+          contentType = 'audio/mpeg';
+      }
+
+      final formData = FormData.fromMap({
+        'audio': await MultipartFile.fromFile(
+          audioPath,
+          filename: filename,
+          contentType: DioMediaType.parse(contentType),
+        ),
+        'useV2': true,
+      });
+
+      final response = await _dio.post('/messages/scan-voice', data: formData);
+      return ScanResultV2.fromJson(response.data);
+    } catch (e) {
+      rethrow;
+    }
+  }
+
+  // ============================================
+  // DEEP URL ANALYSIS (Phase 3: Phishing Intel)
+  // ============================================
+
+  /// Deep URL analysis with domain intelligence
+  Future<DeepUrlAnalysis> analyzeUrlDeep(String url, {bool includeScreenshot = false}) async {
+    if (_isDemoMode) {
+      return DeepUrlAnalysis(
+        url: url,
+        isPhishing: url.contains('suspicious') || url.contains('login-verify'),
+        confidence: 0.75,
+        threatLevel: 'MEDIUM',
+        domainIntel: DomainIntel(
+          domain: Uri.tryParse(url)?.host ?? url,
+          domainAge: DomainAge(
+            creationDate: DateTime.now().subtract(const Duration(days: 45)),
+            registrar: 'Demo Registrar Inc.',
+            isNew: false,
+            ageDays: 45,
+          ),
+          sslInfo: SslInfo(
+            isValid: true,
+            issuer: "Let's Encrypt",
+            isFreeCertificate: true,
+            daysUntilExpiry: 60,
+          ),
+          riskScore: 0.4,
+          riskFactors: ['Recently registered domain', 'Free SSL certificate'],
+        ),
+        riskBreakdown: RiskBreakdown(
+          textScore: 0.3,
+          urlScore: 0.5,
+          domainScore: 0.4,
+          visualScore: 0.2,
+          combined: 0.4,
+        ),
+        indicators: ['Domain registered recently', 'Uses free SSL certificate'],
+        recommendations: ['Verify the sender before clicking links', 'Check the URL carefully'],
+      );
+    }
+    try {
+      final response = await _dio.post('/phishing/scan-url', data: {
+        'url': url,
+        'deepAnalysis': true,
+        'includeScreenshot': includeScreenshot,
+      });
+      return DeepUrlAnalysis.fromJson(response.data['data']);
+    } catch (e) {
+      rethrow;
+    }
+  }
+
+  /// Get domain intelligence for a specific domain
+  Future<DomainIntel> getDomainIntel(String domain) async {
+    if (_isDemoMode) {
+      return DomainIntel(
+        domain: domain,
+        domainAge: DomainAge(
+          creationDate: DateTime.now().subtract(const Duration(days: 365)),
+          registrar: 'Demo Registrar',
+          isNew: false,
+          ageDays: 365,
+        ),
+        riskScore: 0.2,
+      );
+    }
+    try {
+      final response = await _dio.get('/intel/domain/$domain');
+      return DomainIntel.fromJson(response.data['data']);
     } catch (e) {
       rethrow;
     }

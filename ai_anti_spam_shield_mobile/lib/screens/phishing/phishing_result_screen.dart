@@ -1,10 +1,13 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:animate_do/animate_do.dart';
 import '../../models/phishing_result.dart';
 import '../../providers/phishing_provider.dart';
 import '../../utils/colors.dart';
-import '../../widgets/custom_button.dart';
+import '../../widgets/feedback_buttons.dart';
+import '../../widgets/animations/success_checkmark.dart';
+import '../../widgets/animations/threat_alert_animation.dart' hide ThreatLevel;
 
 class PhishingResultScreen extends ConsumerWidget {
   const PhishingResultScreen({super.key});
@@ -18,14 +21,30 @@ class PhishingResultScreen extends ConsumerWidget {
       return Scaffold(
         backgroundColor: isDark ? AppColors.darkBackground : AppColors.background,
         appBar: AppBar(
-          backgroundColor: isDark ? AppColors.darkSurface : AppColors.primary,
-          title: const Text('Phishing Analysis', style: TextStyle(color: Colors.white)),
-          iconTheme: const IconThemeData(color: Colors.white),
+          backgroundColor: Colors.transparent,
+          elevation: 0,
+          leading: IconButton(
+            icon: Icon(
+              Icons.arrow_back_ios_new,
+              color: isDark ? AppColors.darkTextPrimary : AppColors.textPrimary,
+            ),
+            onPressed: () => Navigator.pop(context),
+          ),
         ),
         body: Center(
-          child: Text(
-            'No phishing analysis available',
-            style: TextStyle(color: isDark ? AppColors.darkTextPrimary : AppColors.textPrimary),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(Icons.search_off, size: 64, color: AppColors.textTertiary),
+              const SizedBox(height: 16),
+              Text(
+                'No phishing analysis available',
+                style: TextStyle(
+                  fontSize: 16,
+                  color: isDark ? AppColors.darkTextSecondary : AppColors.textSecondary,
+                ),
+              ),
+            ],
           ),
         ),
       );
@@ -33,203 +52,285 @@ class PhishingResultScreen extends ConsumerWidget {
 
     final result = phishingState.result!;
     final isPhishing = result.isPhishing;
-    final confidence = result.confidencePercentage;
+    final statusColor = isPhishing ? _getThreatColor(result.threatLevel) : AppColors.success;
 
     return Scaffold(
       backgroundColor: isDark ? AppColors.darkBackground : AppColors.background,
-      appBar: AppBar(
-        backgroundColor: isDark ? AppColors.darkSurface : AppColors.primary,
-        elevation: 0,
-        title: const Text(
-          'Phishing Analysis',
-          style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
-        ),
-        iconTheme: const IconThemeData(color: Colors.white),
-      ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(24.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            // Result Icon and Status
-            _buildStatusCard(result, isDark),
-
-            const SizedBox(height: 24),
-
-            // Threat Level Badge
-            if (isPhishing) ...[
-              FadeInUp(
-                duration: const Duration(milliseconds: 650),
-                child: _buildThreatLevelBadge(result.threatLevel, isDark),
+      body: CustomScrollView(
+        slivers: [
+          // Custom App Bar with result status
+          SliverAppBar(
+            expandedHeight: 280,
+            pinned: true,
+            elevation: 0,
+            backgroundColor: statusColor,
+            leading: IconButton(
+              icon: Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.2),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: const Icon(Icons.arrow_back_ios_new, color: Colors.white, size: 18),
               ),
-              const SizedBox(height: 16),
-            ],
-
-            // Phishing Type
-            FadeInUp(
-              duration: const Duration(milliseconds: 700),
-              child: _buildPhishingTypeCard(result.phishingType, isDark),
+              onPressed: () => Navigator.pop(context),
             ),
-
-            const SizedBox(height: 16),
-
-            // Detected Indicators
-            if (result.indicators.isNotEmpty) ...[
-              FadeInUp(
-                duration: const Duration(milliseconds: 750),
-                child: _buildIndicatorsSection(result.indicators, isDark),
-              ),
-              const SizedBox(height: 16),
-            ],
-
-            // URL Analysis
-            if (result.urlsAnalyzed.isNotEmpty) ...[
-              FadeInUp(
-                duration: const Duration(milliseconds: 800),
-                child: _buildUrlAnalysisSection(result.urlsAnalyzed, isDark),
-              ),
-              const SizedBox(height: 16),
-            ],
-
-            // Brand Impersonation Warning
-            if (result.brandImpersonation != null) ...[
-              FadeInUp(
-                duration: const Duration(milliseconds: 850),
-                child: _buildBrandWarning(result.brandImpersonation!, isDark),
-              ),
-              const SizedBox(height: 16),
-            ],
-
-            // Recommendation
-            FadeInUp(
-              duration: const Duration(milliseconds: 900),
-              child: _buildRecommendationCard(result.recommendation, isPhishing, isDark),
-            ),
-
-            const SizedBox(height: 24),
-
-            // Action Buttons
-            FadeInUp(
-              duration: const Duration(milliseconds: 950),
-              child: Column(
-                children: [
-                  if (isPhishing)
-                    CustomButton(
-                      text: 'Report This Message',
-                      onPressed: () => _showReportDialog(context),
-                      backgroundColor: AppColors.danger,
-                      icon: Icons.flag_outlined,
-                    ),
-                  const SizedBox(height: 12),
-                  CustomButton(
-                    text: 'Scan Another Message',
-                    onPressed: () {
-                      ref.read(phishingProvider.notifier).clearResult();
-                      Navigator.pop(context);
-                    },
-                    isOutlined: true,
+            flexibleSpace: FlexibleSpaceBar(
+              background: Container(
+                decoration: BoxDecoration(
+                  gradient: isPhishing
+                      ? LinearGradient(
+                          colors: [statusColor, statusColor.withValues(alpha: 0.8)],
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                        )
+                      : AppColors.successGradient,
+                ),
+                child: SafeArea(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      const SizedBox(height: 40),
+                      // Animated Icon
+                      FadeInDown(
+                        duration: const Duration(milliseconds: 600),
+                        child: isPhishing
+                            ? ThreatAlertAnimation(
+                                size: 100,
+                                showShake: true,
+                                showPulse: true,
+                                enableHaptic: true,
+                              )
+                            : SuccessCheckmark(
+                                size: 100,
+                                showParticles: true,
+                              ),
+                      ),
+                      const SizedBox(height: 20),
+                      // Status Text
+                      FadeInUp(
+                        duration: const Duration(milliseconds: 500),
+                        delay: const Duration(milliseconds: 200),
+                        child: Text(
+                          isPhishing ? _getStatusText(result.threatLevel) : 'Link is Safe',
+                          style: const TextStyle(
+                            fontSize: 24,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.white,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      // Confidence Badge
+                      FadeInUp(
+                        duration: const Duration(milliseconds: 500),
+                        delay: const Duration(milliseconds: 300),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                          decoration: BoxDecoration(
+                            color: Colors.white.withValues(alpha: 0.2),
+                            borderRadius: BorderRadius.circular(20),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(
+                                isPhishing ? Icons.phishing : Icons.verified_user,
+                                color: Colors.white,
+                                size: 18,
+                              ),
+                              const SizedBox(width: 8),
+                              Text(
+                                '${result.confidenceLabel}: ${result.confidencePercentage}',
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.w600,
+                                  fontSize: 14,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
+                ),
+              ),
+            ),
+          ),
+
+          // Content
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: const EdgeInsets.all(20),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  // Threat Level Card (for phishing)
+                  if (isPhishing) ...[
+                    FadeInUp(
+                      duration: const Duration(milliseconds: 500),
+                      child: _buildThreatLevelCard(result, isDark),
+                    ),
+                    const SizedBox(height: 16),
+                  ],
+
+                  // Phishing Type Card
+                  FadeInUp(
+                    duration: const Duration(milliseconds: 550),
+                    child: _buildPhishingTypeCard(result.phishingType, isDark),
+                  ),
+
+                  const SizedBox(height: 16),
+
+                  // Detected Indicators
+                  if (result.indicators.isNotEmpty) ...[
+                    FadeInUp(
+                      duration: const Duration(milliseconds: 600),
+                      child: _buildIndicatorsSection(result.indicators, isDark),
+                    ),
+                    const SizedBox(height: 16),
+                  ],
+
+                  // URL Analysis
+                  if (result.urlsAnalyzed.isNotEmpty) ...[
+                    FadeInUp(
+                      duration: const Duration(milliseconds: 650),
+                      child: _buildUrlAnalysisSection(result.urlsAnalyzed, isDark),
+                    ),
+                    const SizedBox(height: 16),
+                  ],
+
+                  // Brand Impersonation Warning
+                  if (result.brandImpersonation != null && result.brandImpersonation!.detected) ...[
+                    FadeInUp(
+                      duration: const Duration(milliseconds: 700),
+                      child: _buildBrandWarning(result.brandImpersonation!, isDark),
+                    ),
+                    const SizedBox(height: 16),
+                  ],
+
+                  // Danger Causes Section
+                  if (result.dangerCauses.isNotEmpty) ...[
+                    FadeInUp(
+                      duration: const Duration(milliseconds: 750),
+                      child: _buildDangerCausesSection(result, isDark),
+                    ),
+                    const SizedBox(height: 16),
+                  ],
+
+                  // Recommendation Card
+                  FadeInUp(
+                    duration: const Duration(milliseconds: 800),
+                    child: _buildRecommendationCard(result.recommendation, isPhishing, isDark),
+                  ),
+
+                  const SizedBox(height: 16),
+
+                  // Feedback Section
+                  if (result.historyId != null)
+                    FadeInUp(
+                      duration: const Duration(milliseconds: 850),
+                      child: _buildFeedbackSection(result, isDark),
+                    ),
+
+                  const SizedBox(height: 24),
+
+                  // Action Buttons
+                  FadeInUp(
+                    duration: const Duration(milliseconds: 900),
+                    child: _buildActionButtons(context, ref, result, isDark),
+                  ),
+
+                  // Safety Tips for phishing
+                  if (isPhishing) ...[
+                    const SizedBox(height: 24),
+                    FadeInUp(
+                      duration: const Duration(milliseconds: 950),
+                      child: _buildSafetyTips(isDark),
+                    ),
+                  ],
+
+                  const SizedBox(height: 32),
                 ],
               ),
             ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildStatusCard(PhishingResult result, bool isDark) {
-    final isPhishing = result.isPhishing;
-    final statusColor = _getThreatColor(result.threatLevel);
-
-    return FadeInDown(
-      duration: const Duration(milliseconds: 600),
-      child: Container(
-        padding: const EdgeInsets.all(32),
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            colors: isPhishing
-                ? [statusColor.withOpacity(0.1), statusColor.withOpacity(0.05)]
-                : [AppColors.success.withOpacity(0.1), AppColors.success.withOpacity(0.05)],
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
           ),
-          borderRadius: BorderRadius.circular(20),
-        ),
-        child: Column(
-          children: [
-            // Icon
-            ZoomIn(
-              duration: const Duration(milliseconds: 800),
-              child: Container(
-                padding: const EdgeInsets.all(24),
-                decoration: BoxDecoration(
-                  color: isPhishing ? statusColor : AppColors.success,
-                  shape: BoxShape.circle,
-                  boxShadow: [
-                    BoxShadow(
-                      color: (isPhishing ? statusColor : AppColors.success).withOpacity(0.3),
-                      blurRadius: 20,
-                      spreadRadius: 5,
-                    ),
-                  ],
-                ),
-                child: Icon(
-                  isPhishing ? Icons.phishing_rounded : Icons.verified_user_rounded,
-                  size: 80,
-                  color: Colors.white,
-                ),
-              ),
-            ),
-            const SizedBox(height: 24),
-            // Status
-            Text(
-              isPhishing ? 'PHISHING DETECTED!' : 'SAFE MESSAGE',
-              style: TextStyle(
-                fontSize: 28,
-                fontWeight: FontWeight.bold,
-                color: isPhishing ? statusColor : AppColors.success,
-              ),
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 12),
-            // Confidence
-            Text(
-              'Confidence: ${result.confidencePercentage}',
-              style: TextStyle(
-                fontSize: 18,
-                color: isDark ? AppColors.darkTextSecondary : AppColors.textSecondary,
-                fontWeight: FontWeight.w500,
-              ),
-            ),
-          ],
-        ),
+        ],
       ),
     );
   }
 
-  Widget _buildThreatLevelBadge(ThreatLevel level, bool isDark) {
-    final color = _getThreatColor(level);
-    final icon = _getThreatIcon(level);
+  String _getStatusText(ThreatLevel level) {
+    switch (level) {
+      case ThreatLevel.critical:
+        return 'Phishing Detected!';
+      case ThreatLevel.high:
+        return 'High Risk Link';
+      case ThreatLevel.medium:
+        return 'Suspicious Link';
+      default:
+        return 'Potential Threat';
+    }
+  }
+
+  Widget _buildThreatLevelCard(PhishingResult result, bool isDark) {
+    final riskColor = _getThreatColor(result.threatLevel);
 
     return Container(
-      padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 20),
+      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: color.withOpacity(isDark ? 0.2 : 0.1),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: color.withOpacity(0.5)),
+        color: riskColor.withValues(alpha: isDark ? 0.15 : 0.08),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: riskColor.withValues(alpha: 0.3)),
       ),
       child: Row(
-        mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(icon, color: color, size: 28),
-          const SizedBox(width: 12),
-          Text(
-            'Threat Level: ${level.displayName}',
-            style: TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.bold,
-              color: color,
+          Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: riskColor.withValues(alpha: 0.15),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Icon(_getThreatIcon(result.threatLevel), color: riskColor, size: 24),
+          ),
+          const SizedBox(width: 16),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Threat Level',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: isDark ? AppColors.darkTextSecondary : AppColors.textSecondary,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  result.threatLevel.displayName,
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    color: riskColor,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+            decoration: BoxDecoration(
+              color: riskColor,
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Text(
+              result.confidencePercentage,
+              style: const TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.bold,
+                fontSize: 16,
+              ),
             ),
           ),
         ],
@@ -242,48 +343,45 @@ class PhishingResultScreen extends ConsumerWidget {
     final label = _getPhishingTypeLabel(type);
 
     return Container(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         color: isDark ? AppColors.darkCard : Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 10,
-            offset: const Offset(0, 2),
-          ),
-        ],
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: isDark ? null : AppColors.softShadow(),
       ),
       child: Row(
         children: [
           Container(
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
-              color: AppColors.primary.withOpacity(0.1),
-              borderRadius: BorderRadius.circular(10),
+              color: AppColors.primary.withValues(alpha: 0.1),
+              borderRadius: BorderRadius.circular(12),
             ),
             child: Icon(icon, color: AppColors.primary, size: 24),
           ),
           const SizedBox(width: 16),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'Attack Type',
-                style: TextStyle(
-                  fontSize: 12,
-                  color: isDark ? AppColors.darkTextSecondary : AppColors.textSecondary,
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Attack Type',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: isDark ? AppColors.darkTextSecondary : AppColors.textSecondary,
+                  ),
                 ),
-              ),
-              Text(
-                label,
-                style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                  color: isDark ? AppColors.darkTextPrimary : AppColors.textPrimary,
+                const SizedBox(height: 4),
+                Text(
+                  label,
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                    color: isDark ? AppColors.darkTextPrimary : AppColors.textPrimary,
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ],
       ),
@@ -292,48 +390,49 @@ class PhishingResultScreen extends ConsumerWidget {
 
   Widget _buildIndicatorsSection(List<String> indicators, bool isDark) {
     return Container(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         color: isDark ? AppColors.darkCard : Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 10,
-            offset: const Offset(0, 2),
-          ),
-        ],
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: isDark ? null : AppColors.softShadow(),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
-              Icon(Icons.warning_amber_rounded, color: AppColors.warning, size: 24),
-              const SizedBox(width: 8),
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: AppColors.warning.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Icon(Icons.warning_amber_rounded, color: AppColors.warning, size: 20),
+              ),
+              const SizedBox(width: 12),
               Text(
                 'Detected Indicators',
                 style: TextStyle(
-                  fontSize: 16,
+                  fontSize: 15,
                   fontWeight: FontWeight.bold,
                   color: isDark ? AppColors.darkTextPrimary : AppColors.textPrimary,
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 16),
           ...indicators.map((indicator) => Padding(
-            padding: const EdgeInsets.symmetric(vertical: 6),
+            padding: const EdgeInsets.only(bottom: 10),
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Icon(Icons.error_outline, color: AppColors.danger, size: 20),
-                const SizedBox(width: 8),
+                Icon(Icons.error_outline, color: AppColors.danger, size: 18),
+                const SizedBox(width: 10),
                 Expanded(
                   child: Text(
                     indicator,
                     style: TextStyle(
-                      fontSize: 14,
+                      fontSize: 13,
                       color: isDark ? AppColors.darkTextSecondary : AppColors.textSecondary,
                     ),
                   ),
@@ -348,36 +447,37 @@ class PhishingResultScreen extends ConsumerWidget {
 
   Widget _buildUrlAnalysisSection(List<URLAnalysis> urls, bool isDark) {
     return Container(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         color: isDark ? AppColors.darkCard : Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 10,
-            offset: const Offset(0, 2),
-          ),
-        ],
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: isDark ? null : AppColors.softShadow(),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
-              Icon(Icons.link, color: AppColors.primary, size: 24),
-              const SizedBox(width: 8),
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: AppColors.info.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Icon(Icons.link, color: AppColors.info, size: 20),
+              ),
+              const SizedBox(width: 12),
               Text(
                 'URL Analysis',
                 style: TextStyle(
-                  fontSize: 16,
+                  fontSize: 15,
                   fontWeight: FontWeight.bold,
                   color: isDark ? AppColors.darkTextPrimary : AppColors.textPrimary,
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 16),
           ...urls.map((url) => _buildUrlItem(url, isDark)),
         ],
       ),
@@ -385,14 +485,15 @@ class PhishingResultScreen extends ConsumerWidget {
   }
 
   Widget _buildUrlItem(URLAnalysis url, bool isDark) {
+    final color = url.isSuspicious ? AppColors.danger : AppColors.success;
+
     return Container(
-      margin: const EdgeInsets.symmetric(vertical: 6),
-      padding: const EdgeInsets.all(12),
+      margin: const EdgeInsets.only(bottom: 10),
+      padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: url.isSuspicious
-            ? AppColors.danger.withOpacity(isDark ? 0.15 : 0.08)
-            : AppColors.success.withOpacity(isDark ? 0.15 : 0.08),
-        borderRadius: BorderRadius.circular(8),
+        color: color.withValues(alpha: isDark ? 0.12 : 0.06),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: color.withValues(alpha: 0.2)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -400,31 +501,31 @@ class PhishingResultScreen extends ConsumerWidget {
           Row(
             children: [
               Icon(
-                url.isSuspicious ? Icons.dangerous : Icons.check_circle_outline,
-                color: url.isSuspicious ? AppColors.danger : AppColors.success,
-                size: 20,
+                url.isSuspicious ? Icons.dangerous : Icons.check_circle,
+                color: color,
+                size: 18,
               ),
-              const SizedBox(width: 8),
+              const SizedBox(width: 10),
               Expanded(
                 child: Text(
-                  url.url.length > 40 ? '${url.url.substring(0, 40)}...' : url.url,
+                  url.url.length > 35 ? '${url.url.substring(0, 35)}...' : url.url,
                   style: TextStyle(
                     fontSize: 12,
-                    fontWeight: FontWeight.w500,
+                    fontWeight: FontWeight.w600,
                     color: isDark ? AppColors.darkTextPrimary : AppColors.textPrimary,
                   ),
                 ),
               ),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                 decoration: BoxDecoration(
-                  color: url.isSuspicious ? AppColors.danger : AppColors.success,
-                  borderRadius: BorderRadius.circular(12),
+                  color: color,
+                  borderRadius: BorderRadius.circular(8),
                 ),
                 child: Text(
                   '${(url.score * 100).toStringAsFixed(0)}%',
                   style: const TextStyle(
-                    fontSize: 12,
+                    fontSize: 11,
                     color: Colors.white,
                     fontWeight: FontWeight.bold,
                   ),
@@ -433,13 +534,13 @@ class PhishingResultScreen extends ConsumerWidget {
             ],
           ),
           if (url.reasons.isNotEmpty) ...[
-            const SizedBox(height: 8),
-            ...url.reasons.map((reason) => Padding(
-              padding: const EdgeInsets.only(left: 28, top: 4),
+            const SizedBox(height: 10),
+            ...url.reasons.take(3).map((reason) => Padding(
+              padding: const EdgeInsets.only(left: 28, bottom: 4),
               child: Text(
-                '- $reason',
+                '• $reason',
                 style: TextStyle(
-                  fontSize: 12,
+                  fontSize: 11,
                   color: isDark ? AppColors.darkTextSecondary : AppColors.textSecondary,
                 ),
               ),
@@ -454,20 +555,27 @@ class PhishingResultScreen extends ConsumerWidget {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: AppColors.warning.withOpacity(isDark ? 0.2 : 0.1),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.warning.withOpacity(0.5)),
+        color: AppColors.warning.withValues(alpha: isDark ? 0.15 : 0.08),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppColors.warning.withValues(alpha: 0.3)),
       ),
       child: Row(
         children: [
-          Icon(Icons.business, color: AppColors.warning, size: 32),
+          Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: AppColors.warning.withValues(alpha: 0.15),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Icon(Icons.business, color: AppColors.warning, size: 24),
+          ),
           const SizedBox(width: 16),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text(
-                  'Brand Impersonation Detected',
+                Text(
+                  'Brand Impersonation',
                   style: TextStyle(
                     fontSize: 14,
                     fontWeight: FontWeight.bold,
@@ -476,7 +584,7 @@ class PhishingResultScreen extends ConsumerWidget {
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  'This message may be impersonating ${brand.brand?.toUpperCase() ?? "a known brand"}',
+                  'Impersonating ${brand.brand?.toUpperCase() ?? "a known brand"}',
                   style: TextStyle(
                     fontSize: 13,
                     color: isDark ? AppColors.darkTextSecondary : AppColors.textSecondary,
@@ -490,48 +598,82 @@ class PhishingResultScreen extends ConsumerWidget {
     );
   }
 
-  Widget _buildRecommendationCard(String recommendation, bool isPhishing, bool isDark) {
+  Widget _buildDangerCausesSection(PhishingResult result, bool isDark) {
     return Container(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: isPhishing
-            ? AppColors.danger.withOpacity(isDark ? 0.15 : 0.08)
-            : AppColors.success.withOpacity(isDark ? 0.15 : 0.08),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: isPhishing
-              ? AppColors.danger.withOpacity(0.3)
-              : AppColors.success.withOpacity(0.3),
-        ),
+        color: isDark ? AppColors.darkCard : Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppColors.danger.withValues(alpha: 0.2)),
+        boxShadow: isDark ? null : AppColors.softShadow(),
       ),
-      child: Row(
+      child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(
-            isPhishing ? Icons.shield_outlined : Icons.verified_outlined,
-            color: isPhishing ? AppColors.danger : AppColors.success,
-            size: 24,
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Recommendation',
-                  style: TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.bold,
-                    color: isPhishing ? AppColors.danger : AppColors.success,
-                  ),
+          // Header
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: AppColors.danger.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(10),
                 ),
-                const SizedBox(height: 8),
-                Text(
-                  recommendation,
-                  style: TextStyle(
-                    fontSize: 14,
-                    height: 1.5,
-                    color: isDark ? AppColors.darkTextPrimary : AppColors.textPrimary,
+                child: Icon(Icons.phishing_rounded, color: AppColors.danger, size: 22),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Why This Is Dangerous',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                        color: isDark ? AppColors.darkTextPrimary : AppColors.textPrimary,
+                      ),
+                    ),
+                    Text(
+                      '${result.dangerCauses.length} issue${result.dangerCauses.length > 1 ? 's' : ''} detected',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: isDark ? AppColors.darkTextSecondary : AppColors.textSecondary,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+
+          // Danger Causes List
+          ...result.dangerCauses.map((cause) => _buildDangerCauseItem(cause, isDark)),
+
+          // Detection Info
+          const SizedBox(height: 12),
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: isDark ? AppColors.darkBackground : AppColors.surfaceVariant,
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Row(
+              children: [
+                Icon(
+                  Icons.info_outline,
+                  size: 16,
+                  color: isDark ? AppColors.darkTextTertiary : AppColors.textTertiary,
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    '${result.confidenceLabel}: ${result.confidencePercentage} • Threshold: ${(result.detectionThreshold * 100).toInt()}%',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: isDark ? AppColors.darkTextTertiary : AppColors.textTertiary,
+                    ),
                   ),
                 ),
               ],
@@ -542,16 +684,289 @@ class PhishingResultScreen extends ConsumerWidget {
     );
   }
 
+  Widget _buildDangerCauseItem(PhishingDangerCause cause, bool isDark) {
+    final color = _getSeverityColor(cause.severity);
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 10),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: isDark ? 0.12 : 0.06),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: color.withValues(alpha: 0.2)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(_getSeverityIcon(cause.severity), color: color, size: 18),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  cause.title,
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.bold,
+                    color: isDark ? AppColors.darkTextPrimary : AppColors.textPrimary,
+                  ),
+                ),
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                decoration: BoxDecoration(
+                  color: color.withValues(alpha: 0.15),
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child: Text(
+                  cause.severity.toUpperCase(),
+                  style: TextStyle(
+                    fontSize: 10,
+                    fontWeight: FontWeight.bold,
+                    color: color,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Text(
+            cause.description,
+            style: TextStyle(
+              fontSize: 13,
+              color: isDark ? AppColors.darkTextSecondary : AppColors.textSecondary,
+              height: 1.4,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildRecommendationCard(String recommendation, bool isPhishing, bool isDark) {
+    final color = isPhishing ? AppColors.danger : AppColors.success;
+
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: isDark ? 0.12 : 0.06),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: color.withValues(alpha: 0.2)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: color.withValues(alpha: 0.15),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Icon(
+                  isPhishing ? Icons.shield_outlined : Icons.verified_outlined,
+                  color: color,
+                  size: 20,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Text(
+                'Recommendation',
+                style: TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.bold,
+                  color: color,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Text(
+            recommendation,
+            style: TextStyle(
+              fontSize: 13,
+              height: 1.5,
+              color: isDark ? AppColors.darkTextSecondary : AppColors.textSecondary,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildFeedbackSection(PhishingResult result, bool isDark) {
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: isDark ? AppColors.darkCard : Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: isDark ? null : AppColors.softShadow(),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: AppColors.success.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Icon(Icons.thumb_up_outlined, color: AppColors.success, size: 18),
+              ),
+              const SizedBox(width: 12),
+              Text(
+                'Was this helpful?',
+                style: TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.bold,
+                  color: isDark ? AppColors.darkTextPrimary : AppColors.textPrimary,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          FeedbackButtons(
+            scanId: result.historyId!,
+            scanType: 'phishing',
+            isSpam: result.isPhishing,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildActionButtons(BuildContext context, WidgetRef ref, PhishingResult result, bool isDark) {
+    return Column(
+      children: [
+        if (result.isPhishing)
+          Container(
+            width: double.infinity,
+            margin: const EdgeInsets.only(bottom: 12),
+            child: ElevatedButton.icon(
+              onPressed: () => _showReportDialog(context),
+              icon: const Icon(Icons.flag_outlined, size: 20),
+              label: const Text('Report This Link'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.danger,
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(vertical: 16),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(14),
+                ),
+              ),
+            ),
+          ),
+        Container(
+          width: double.infinity,
+          decoration: BoxDecoration(
+            gradient: AppColors.primaryGradient,
+            borderRadius: BorderRadius.circular(14),
+            boxShadow: [
+              BoxShadow(
+                color: AppColors.primary.withValues(alpha: 0.3),
+                blurRadius: 12,
+                offset: const Offset(0, 4),
+              ),
+            ],
+          ),
+          child: ElevatedButton.icon(
+            onPressed: () {
+              ref.read(phishingProvider.notifier).clearResult();
+              Navigator.pop(context);
+            },
+            icon: const Icon(Icons.search, size: 20),
+            label: const Text('Scan Another Link'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.transparent,
+              shadowColor: Colors.transparent,
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(vertical: 16),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(14),
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildSafetyTips(bool isDark) {
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: AppColors.warning.withValues(alpha: isDark ? 0.12 : 0.06),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppColors.warning.withValues(alpha: 0.2)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: AppColors.warning.withValues(alpha: 0.15),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Icon(Icons.tips_and_updates, color: AppColors.warning, size: 20),
+              ),
+              const SizedBox(width: 12),
+              Text(
+                'What You Should Do',
+                style: TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.bold,
+                  color: isDark ? AppColors.darkTextPrimary : AppColors.textPrimary,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          _buildTipItem(Icons.block, 'Do not visit this link', isDark),
+          _buildTipItem(Icons.lock_outline, 'Never enter credentials', isDark),
+          _buildTipItem(Icons.person_off, 'Don\'t share personal info', isDark),
+          _buildTipItem(Icons.delete_outline, 'Delete and block sender', isDark),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildTipItem(IconData icon, String text, bool isDark) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: Row(
+        children: [
+          Icon(icon, size: 18, color: AppColors.warning),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(
+              text,
+              style: TextStyle(
+                fontSize: 13,
+                color: isDark ? AppColors.darkTextSecondary : AppColors.textSecondary,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Color _getThreatColor(ThreatLevel level) {
     switch (level) {
       case ThreatLevel.critical:
-        return const Color(0xFFDC2626); // Red 600
+        return AppColors.riskCritical;
       case ThreatLevel.high:
-        return const Color(0xFFEA580C); // Orange 600
+        return AppColors.riskHigh;
       case ThreatLevel.medium:
-        return const Color(0xFFD97706); // Amber 600
+        return AppColors.riskMedium;
       case ThreatLevel.low:
-        return const Color(0xFF2563EB); // Blue 600
+        return AppColors.riskLow;
       case ThreatLevel.none:
         return AppColors.success;
     }
@@ -598,37 +1013,152 @@ class PhishingResultScreen extends ConsumerWidget {
     }
   }
 
+  Color _getSeverityColor(String severity) {
+    switch (severity) {
+      case 'critical':
+        return AppColors.riskCritical;
+      case 'high':
+        return AppColors.riskHigh;
+      case 'medium':
+        return AppColors.riskMedium;
+      case 'low':
+        return AppColors.riskLow;
+      default:
+        return AppColors.warning;
+    }
+  }
+
+  IconData _getSeverityIcon(String severity) {
+    switch (severity) {
+      case 'critical':
+        return Icons.dangerous;
+      case 'high':
+        return Icons.warning_amber;
+      case 'medium':
+        return Icons.error_outline;
+      case 'low':
+        return Icons.info_outline;
+      default:
+        return Icons.flag;
+    }
+  }
+
   void _showReportDialog(BuildContext context) {
-    showDialog(
+    HapticFeedback.lightImpact();
+    showModalBottomSheet(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Report Phishing'),
-        content: const Text(
-          'Would you like to report this message as a phishing attempt? '
-          'This helps improve our detection system.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('Cancel'),
+      backgroundColor: Colors.transparent,
+      builder: (context) {
+        final isDark = Theme.of(context).brightness == Brightness.dark;
+        return Container(
+          padding: const EdgeInsets.all(24),
+          decoration: BoxDecoration(
+            color: isDark ? AppColors.darkSurface : Colors.white,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
           ),
-          ElevatedButton(
-            onPressed: () {
-              Navigator.pop(ctx);
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('Thank you! Report submitted successfully.'),
-                  backgroundColor: AppColors.success,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: AppColors.textLight,
+                  borderRadius: BorderRadius.circular(2),
                 ),
-              );
-            },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppColors.danger,
-            ),
-            child: const Text('Report', style: TextStyle(color: Colors.white)),
+              ),
+              const SizedBox(height: 24),
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: AppColors.danger.withValues(alpha: 0.1),
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(Icons.flag, color: AppColors.danger, size: 32),
+              ),
+              const SizedBox(height: 20),
+              Text(
+                'Report Phishing Link',
+                style: TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                  color: isDark ? AppColors.darkTextPrimary : AppColors.textPrimary,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'Help improve our detection by reporting this phishing attempt. Your report is anonymous.',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontSize: 14,
+                  color: isDark ? AppColors.darkTextSecondary : AppColors.textSecondary,
+                ),
+              ),
+              const SizedBox(height: 24),
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton(
+                      onPressed: () => Navigator.pop(context),
+                      style: OutlinedButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(vertical: 16),
+                        side: BorderSide(color: AppColors.border),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                      ),
+                      child: Text(
+                        'Cancel',
+                        style: TextStyle(
+                          color: AppColors.textSecondary,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    flex: 2,
+                    child: ElevatedButton.icon(
+                      onPressed: () {
+                        Navigator.pop(context);
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Row(
+                              children: [
+                                Icon(Icons.check_circle, color: Colors.white, size: 20),
+                                const SizedBox(width: 12),
+                                const Text('Report submitted successfully'),
+                              ],
+                            ),
+                            backgroundColor: AppColors.success,
+                            behavior: SnackBarBehavior.floating,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            margin: const EdgeInsets.all(16),
+                          ),
+                        );
+                      },
+                      icon: const Icon(Icons.send, size: 18),
+                      label: const Text('Submit Report'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.danger,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(vertical: 16),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              SizedBox(height: MediaQuery.of(context).padding.bottom + 8),
+            ],
           ),
-        ],
-      ),
+        );
+      },
     );
   }
 }

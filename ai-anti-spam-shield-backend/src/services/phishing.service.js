@@ -38,17 +38,126 @@ class PhishingService {
         }
       );
 
+      /**
+       * Confidence Interpretation:
+       * - AI model returns "phishing confidence" (how likely it's phishing)
+       * - High raw confidence (e.g., 0.85) = 85% likely to be PHISHING
+       * - Low raw confidence (e.g., 0.15) = 15% likely to be phishing = 85% likely to be SAFE
+       *
+       * Detection Logic:
+       * - If phishing confidence >= 0.65 (65%) → PHISHING DETECTED with that confidence
+       * - If phishing confidence < 0.65 → SAFE with (1 - phishing_confidence) as safety confidence
+       */
+      const DETECTION_THRESHOLD = 0.65;
+      const rawPhishingConfidence = response.data.confidence || 0;
+
+      // Determine if it's phishing based on the phishing confidence
+      const isPhishing = rawPhishingConfidence >= DETECTION_THRESHOLD;
+
+      // Calculate display confidence:
+      // - If phishing: show phishing confidence (e.g., 85% phishing)
+      // - If safe: show safety confidence (e.g., 1 - 0.15 = 85% safe)
+      const displayConfidence = isPhishing
+        ? rawPhishingConfidence
+        : (1 - rawPhishingConfidence);
+
+      // Generate detailed danger causes for phishing analysis
+      const dangerCauses = [];
+      if (isPhishing) {
+        dangerCauses.push({
+          type: 'phishing_detected',
+          title: 'Phishing Detected',
+          description: `Our AI detected this as a phishing attempt with ${(rawPhishingConfidence * 100).toFixed(1)}% confidence. This exceeds our ${(DETECTION_THRESHOLD * 100)}% threshold for phishing detection.`,
+          severity: rawPhishingConfidence >= 0.85 ? 'critical' : rawPhishingConfidence >= 0.75 ? 'high' : 'medium'
+        });
+
+        if (rawPhishingConfidence >= 0.85) {
+          dangerCauses.push({
+            type: 'high_phishing_confidence',
+            title: 'Very High Phishing Probability',
+            description: 'The AI is highly confident this is a phishing attempt. This message contains multiple strong indicators of malicious intent. Do NOT interact with any links or provide any personal information.',
+            severity: 'critical'
+          });
+        }
+
+        if (rawPhishingConfidence >= 0.65 && rawPhishingConfidence < 0.85) {
+          dangerCauses.push({
+            type: 'moderate_phishing_confidence',
+            title: 'Moderate Phishing Probability',
+            description: 'The message shows significant phishing characteristics. While not all indicators are present, there are enough suspicious elements to warrant caution.',
+            severity: 'high'
+          });
+        }
+
+        // Add causes based on indicators
+        const indicators = response.data.indicators || [];
+        if (indicators.length > 0) {
+          indicators.forEach((indicator, index) => {
+            if (index < 5) {
+              dangerCauses.push({
+                type: 'indicator',
+                title: `Suspicious Pattern #${index + 1}`,
+                description: indicator,
+                severity: 'medium'
+              });
+            }
+          });
+        }
+
+        // Add causes based on brand impersonation
+        if (response.data.brand_impersonation?.detected) {
+          dangerCauses.push({
+            type: 'brand_impersonation',
+            title: 'Brand Impersonation Detected',
+            description: `This message appears to be impersonating ${response.data.brand_impersonation.brand || 'a known brand'}. Legitimate companies do not ask for sensitive information via unsolicited messages.`,
+            severity: 'critical'
+          });
+        }
+
+        // Add causes based on URL analysis
+        const urlsAnalyzed = response.data.urls_analyzed || [];
+        const suspiciousUrls = urlsAnalyzed.filter(u => u.is_suspicious || u.isSuspicious);
+        if (suspiciousUrls.length > 0) {
+          dangerCauses.push({
+            type: 'suspicious_urls',
+            title: `${suspiciousUrls.length} Suspicious URL(s) Detected`,
+            description: 'The message contains links that show characteristics of phishing sites, including suspicious domains, misleading paths, or known malicious patterns.',
+            severity: 'critical'
+          });
+        }
+      }
+
+      // Determine threat level based on phishing confidence
+      const calculatedThreatLevel = isPhishing
+        ? (rawPhishingConfidence >= 0.85 ? 'CRITICAL' : rawPhishingConfidence >= 0.75 ? 'HIGH' : 'MEDIUM')
+        : 'NONE';
+
+      // Generate recommendation based on danger level
+      const recommendation = isPhishing
+        ? rawPhishingConfidence >= 0.85
+          ? 'DANGER: This message is highly likely to be a phishing attempt. Do NOT click any links, do NOT reply, and do NOT provide any personal information. Delete this message immediately and block the sender.'
+          : rawPhishingConfidence >= 0.75
+            ? 'WARNING: This message shows significant signs of being a phishing attempt. Do not interact with any links or requests for information. Verify the sender through official channels before taking any action.'
+            : 'CAUTION: This message has suspicious characteristics that suggest phishing. Be careful with any links or requests. When in doubt, contact the supposed sender through official channels to verify.'
+        : response.data.recommendation || 'This message appears to be safe. However, always remain vigilant and never share sensitive information unless you are certain of the recipient\'s identity.';
+
       const result = {
-        isPhishing: response.data.is_phishing,
-        confidence: response.data.confidence,
-        phishingType: response.data.phishing_type,
-        threatLevel: response.data.threat_level,
+        isPhishing: isPhishing,
+        confidence: displayConfidence,
+        raw_phishing_confidence: rawPhishingConfidence,
+        phishingType: response.data.phishing_type || (isPhishing ? scanType.toUpperCase() : 'NONE'),
+        threatLevel: calculatedThreatLevel,
         indicators: response.data.indicators || [],
         urlsAnalyzed: response.data.urls_analyzed || [],
         brandImpersonation: response.data.brand_impersonation,
-        recommendation: response.data.recommendation,
-        details: response.data.details || {},
-        timestamp: response.data.timestamp || new Date().toISOString()
+        recommendation: recommendation,
+        details: { ...(response.data.details || {}), danger_causes: dangerCauses },
+        timestamp: response.data.timestamp || new Date().toISOString(),
+        is_safe: !isPhishing,
+        detection_threshold: DETECTION_THRESHOLD,
+        danger_causes: dangerCauses,
+        risk_level: calculatedThreatLevel,
+        confidence_label: isPhishing ? 'Phishing Confidence' : 'Safety Confidence'
       };
 
       // Save to history if user is authenticated
@@ -90,17 +199,172 @@ class PhishingService {
         }
       );
 
+      /**
+       * Confidence Interpretation:
+       * - AI model returns "phishing confidence" (how likely it's phishing)
+       * - High raw confidence (e.g., 0.85) = 85% likely to be PHISHING URL
+       * - Low raw confidence (e.g., 0.15) = 15% likely to be phishing = 85% likely to be SAFE URL
+       *
+       * Detection Logic:
+       * - If phishing confidence >= 0.65 (65%) → PHISHING URL DETECTED with that confidence
+       * - If phishing confidence < 0.65 → SAFE URL with (1 - phishing_confidence) as safety confidence
+       */
+      const DETECTION_THRESHOLD = 0.65;
+      const rawPhishingConfidence = response.data.confidence || 0;
+
+      // Determine if it's phishing based on the phishing confidence
+      const isPhishing = rawPhishingConfidence >= DETECTION_THRESHOLD;
+
+      // Calculate display confidence:
+      // - If phishing: show phishing confidence (e.g., 85% phishing)
+      // - If safe: show safety confidence (e.g., 1 - 0.15 = 85% safe)
+      const displayConfidence = isPhishing
+        ? rawPhishingConfidence
+        : (1 - rawPhishingConfidence);
+
+      // Generate detailed danger causes for URL phishing analysis
+      const dangerCauses = [];
+      if (isPhishing) {
+        dangerCauses.push({
+          type: 'phishing_url_detected',
+          title: 'Phishing URL Detected',
+          description: `Our AI detected this as a phishing URL with ${(rawPhishingConfidence * 100).toFixed(1)}% confidence. This exceeds our ${(DETECTION_THRESHOLD * 100)}% threshold for phishing detection.`,
+          severity: rawPhishingConfidence >= 0.85 ? 'critical' : rawPhishingConfidence >= 0.75 ? 'high' : 'medium'
+        });
+
+        if (rawPhishingConfidence >= 0.85) {
+          dangerCauses.push({
+            type: 'high_phishing_confidence',
+            title: 'Very High Phishing URL Risk',
+            description: 'This URL shows extremely strong characteristics of a phishing site. Do NOT visit this link or enter any personal information. It may steal your credentials or install malware.',
+            severity: 'critical'
+          });
+        }
+
+        if (rawPhishingConfidence >= 0.65 && rawPhishingConfidence < 0.85) {
+          dangerCauses.push({
+            type: 'moderate_phishing_confidence',
+            title: 'Moderate Phishing URL Risk',
+            description: 'The URL has several characteristics common in phishing attempts. The domain may be recently registered or mimic a legitimate site.',
+            severity: 'high'
+          });
+        }
+
+        // Add causes based on indicators
+        const indicators = response.data.indicators || [];
+        if (indicators.length > 0) {
+          indicators.forEach((indicator, index) => {
+            if (index < 5) {
+              dangerCauses.push({
+                type: 'indicator',
+                title: `URL Warning #${index + 1}`,
+                description: indicator,
+                severity: 'medium'
+              });
+            }
+          });
+        }
+
+        // Analyze URL structure for common phishing patterns
+        try {
+          const urlObj = new URL(url);
+
+          // Check for suspicious domain patterns
+          if (urlObj.hostname.includes('-') && urlObj.hostname.split('-').length > 2) {
+            dangerCauses.push({
+              type: 'suspicious_domain',
+              title: 'Suspicious Domain Pattern',
+              description: 'The domain contains multiple hyphens, which is a common technique used to create fake domains that mimic legitimate brands.',
+              severity: 'high'
+            });
+          }
+
+          // Check for IP address instead of domain
+          if (/^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(urlObj.hostname)) {
+            dangerCauses.push({
+              type: 'ip_address_url',
+              title: 'IP Address URL',
+              description: 'This URL uses an IP address instead of a domain name. Legitimate websites rarely use IP addresses directly. This is a major red flag for phishing.',
+              severity: 'critical'
+            });
+          }
+
+          // Check for suspicious TLDs
+          const suspiciousTLDs = ['.tk', '.ml', '.ga', '.cf', '.gq', '.xyz', '.top', '.work', '.click'];
+          if (suspiciousTLDs.some(tld => urlObj.hostname.endsWith(tld))) {
+            dangerCauses.push({
+              type: 'suspicious_tld',
+              title: 'Suspicious Domain Extension',
+              description: 'This URL uses a domain extension commonly associated with malicious websites and phishing attempts.',
+              severity: 'high'
+            });
+          }
+
+          // Check for brand name in subdomain (potential spoofing)
+          const knownBrands = ['paypal', 'amazon', 'google', 'microsoft', 'apple', 'facebook', 'netflix', 'bank'];
+          const hasSpoof = knownBrands.some(brand =>
+            urlObj.hostname.includes(brand) && !urlObj.hostname.endsWith(`${brand}.com`)
+          );
+          if (hasSpoof) {
+            dangerCauses.push({
+              type: 'brand_spoofing',
+              title: 'Potential Brand Impersonation',
+              description: 'This URL contains a well-known brand name but is not the official domain. This is a common phishing technique to trick users into thinking they are on a legitimate site.',
+              severity: 'critical'
+            });
+          }
+        } catch (e) {
+          // Invalid URL format
+          dangerCauses.push({
+            type: 'invalid_url',
+            title: 'Malformed URL',
+            description: 'The URL structure is invalid or malformed, which can indicate an attempt to exploit browser vulnerabilities.',
+            severity: 'high'
+          });
+        }
+
+        // Add causes based on brand impersonation
+        if (response.data.brand_impersonation?.detected) {
+          dangerCauses.push({
+            type: 'brand_impersonation',
+            title: 'Brand Impersonation Confirmed',
+            description: `This URL is attempting to impersonate ${response.data.brand_impersonation.brand || 'a known brand'}. Do NOT enter any credentials or personal information.`,
+            severity: 'critical'
+          });
+        }
+      }
+
+      // Determine threat level based on phishing confidence
+      const calculatedThreatLevel = isPhishing
+        ? (rawPhishingConfidence >= 0.85 ? 'CRITICAL' : rawPhishingConfidence >= 0.75 ? 'HIGH' : 'MEDIUM')
+        : 'NONE';
+
+      // Generate recommendation based on danger level
+      const recommendation = isPhishing
+        ? rawPhishingConfidence >= 0.85
+          ? 'DANGER: This URL is highly likely to be a phishing site. Do NOT visit this link under any circumstances. Do NOT enter any login credentials or personal information. Report this URL as phishing.'
+          : rawPhishingConfidence >= 0.75
+            ? 'WARNING: This URL shows significant signs of being malicious. Do not visit unless you can verify the legitimacy through official channels. Never enter credentials on suspicious sites.'
+            : 'CAUTION: This URL has suspicious characteristics that suggest phishing. If you must visit, ensure you do not enter any sensitive information. Verify the site\'s authenticity before proceeding.'
+        : response.data.recommendation || 'This URL appears to be safe. However, always verify you are on the correct domain before entering sensitive information.';
+
       const result = {
-        isPhishing: response.data.is_phishing,
-        confidence: response.data.confidence,
-        phishingType: response.data.phishing_type,
-        threatLevel: response.data.threat_level,
+        isPhishing: isPhishing,
+        confidence: displayConfidence,
+        raw_phishing_confidence: rawPhishingConfidence,
+        phishingType: response.data.phishing_type || (isPhishing ? 'URL' : 'NONE'),
+        threatLevel: calculatedThreatLevel,
         indicators: response.data.indicators || [],
         urlsAnalyzed: response.data.urls_analyzed || [],
         brandImpersonation: response.data.brand_impersonation,
-        recommendation: response.data.recommendation,
-        details: response.data.details || {},
-        timestamp: response.data.timestamp || new Date().toISOString()
+        recommendation: recommendation,
+        details: { ...(response.data.details || {}), danger_causes: dangerCauses },
+        timestamp: response.data.timestamp || new Date().toISOString(),
+        is_safe: !isPhishing,
+        detection_threshold: DETECTION_THRESHOLD,
+        danger_causes: dangerCauses,
+        risk_level: calculatedThreatLevel,
+        confidence_label: isPhishing ? 'Phishing Confidence' : 'Safety Confidence'
       };
 
       // Save to history if user is authenticated

@@ -2,6 +2,45 @@
 /// Contains data classes for phishing detection API responses
 library;
 
+/// Represents a single danger cause/indicator for phishing
+class PhishingDangerCause {
+  final String type;
+  final String title;
+  final String description;
+  final String severity; // 'critical', 'high', 'medium', 'low'
+
+  PhishingDangerCause({
+    required this.type,
+    required this.title,
+    required this.description,
+    required this.severity,
+  });
+
+  factory PhishingDangerCause.fromJson(Map<String, dynamic> json) {
+    return PhishingDangerCause(
+      type: json['type'] ?? '',
+      title: json['title'] ?? '',
+      description: json['description'] ?? '',
+      severity: json['severity'] ?? 'medium',
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'type': type,
+      'title': title,
+      'description': description,
+      'severity': severity,
+    };
+  }
+
+  /// Check if this is a critical severity issue
+  bool get isCritical => severity == 'critical';
+
+  /// Check if this is a high severity issue
+  bool get isHigh => severity == 'high';
+}
+
 /// URL analysis result from phishing detection
 class URLAnalysis {
   final String url;
@@ -157,6 +196,12 @@ class PhishingResult {
   final String recommendation;
   final Map<String, dynamic> details;
   final String timestamp;
+  final String? historyId; // For feedback submission
+  final bool isSafe; // Whether the result is considered safe
+  final double detectionThreshold; // The threshold used (0.65)
+  final List<PhishingDangerCause> dangerCauses; // Detailed danger explanations
+  final String riskLevel; // 'NONE', 'MEDIUM', 'HIGH', 'CRITICAL'
+  final String confidenceLabel; // 'Phishing Confidence' or 'Safety Confidence'
 
   PhishingResult({
     required this.isPhishing,
@@ -169,16 +214,24 @@ class PhishingResult {
     required this.recommendation,
     required this.details,
     required this.timestamp,
+    this.historyId,
+    this.isSafe = true,
+    this.detectionThreshold = 0.65,
+    this.dangerCauses = const [],
+    this.riskLevel = 'NONE',
+    this.confidenceLabel = 'Safety Confidence',
   });
 
   factory PhishingResult.fromJson(Map<String, dynamic> json) {
+    final dangerCausesJson = json['danger_causes'] as List<dynamic>? ?? [];
+
     return PhishingResult(
       isPhishing: json['isPhishing'] ?? json['is_phishing'] ?? false,
       confidence: (json['confidence'] ?? 0).toDouble(),
       phishingType: PhishingTypeExtension.fromString(
           json['phishingType'] ?? json['phishing_type'] ?? 'NONE'),
       threatLevel: ThreatLevelExtension.fromString(
-          json['threatLevel'] ?? json['threat_level'] ?? 'NONE'),
+          json['threatLevel'] ?? json['threat_level'] ?? json['risk_level'] ?? 'NONE'),
       indicators: List<String>.from(json['indicators'] ?? []),
       urlsAnalyzed: (json['urlsAnalyzed'] ?? json['urls_analyzed'] ?? [])
           .map<URLAnalysis>((u) => URLAnalysis.fromJson(u))
@@ -191,6 +244,14 @@ class PhishingResult {
       recommendation: json['recommendation'] ?? '',
       details: Map<String, dynamic>.from(json['details'] ?? {}),
       timestamp: json['timestamp'] ?? DateTime.now().toIso8601String(),
+      historyId: json['historyId'] ?? json['history_id'] ?? json['id'],
+      isSafe: json['is_safe'] ?? !(json['isPhishing'] ?? json['is_phishing'] ?? false),
+      detectionThreshold: (json['detection_threshold'] as num?)?.toDouble() ?? 0.65,
+      dangerCauses: dangerCausesJson
+          .map((cause) => PhishingDangerCause.fromJson(cause as Map<String, dynamic>))
+          .toList(),
+      riskLevel: json['risk_level'] ?? json['threatLevel'] ?? json['threat_level'] ?? 'NONE',
+      confidenceLabel: json['confidence_label'] ?? ((json['isPhishing'] ?? json['is_phishing'] ?? false) ? 'Phishing Confidence' : 'Safety Confidence'),
     );
   }
 
@@ -206,6 +267,12 @@ class PhishingResult {
       'recommendation': recommendation,
       'details': details,
       'timestamp': timestamp,
+      'historyId': historyId,
+      'is_safe': isSafe,
+      'detection_threshold': detectionThreshold,
+      'danger_causes': dangerCauses.map((c) => c.toJson()).toList(),
+      'risk_level': riskLevel,
+      'confidence_label': confidenceLabel,
     };
   }
 
@@ -222,6 +289,12 @@ class PhishingResult {
   /// Check if this is a high-risk result
   bool get isHighRisk =>
       threatLevel == ThreatLevel.critical || threatLevel == ThreatLevel.high;
+
+  /// Check if there are any critical danger causes
+  bool get hasCriticalDanger => dangerCauses.any((c) => c.isCritical);
+
+  /// Get the count of danger causes
+  int get dangerCount => dangerCauses.length;
 }
 
 /// Phishing scan history item
