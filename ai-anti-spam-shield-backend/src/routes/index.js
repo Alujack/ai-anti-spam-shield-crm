@@ -5,12 +5,14 @@ const messageRoutes = require('./message.routes');
 const userRoutes = require('./user.routes');
 const reportRoutes = require('./report.routes');
 const phishingRoutes = require('./phishing.routes');
+const jobRoutes = require('./job.routes');
 
 // Mount routes
 router.use('/messages', messageRoutes);
 router.use('/users', userRoutes);
 router.use('/reports', reportRoutes);
 router.use('/phishing', phishingRoutes);
+router.use('/jobs', jobRoutes);
 
 // API info endpoint
 router.get('/', (req, res) => {
@@ -22,7 +24,8 @@ router.get('/', (req, res) => {
       messages: '/api/v1/messages',
       users: '/api/v1/users',
       reports: '/api/v1/reports',
-      phishing: '/api/v1/phishing'
+      phishing: '/api/v1/phishing',
+      jobs: '/api/v1/jobs'
     }
   });
 });

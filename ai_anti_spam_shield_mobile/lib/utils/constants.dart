@@ -4,7 +4,7 @@ class AppConstants {
   // ============================================
   // Set to true to use mock data without server connection
   // Set to false to connect to the real server
-  static const bool demoMode = true;
+  static const bool demoMode = false;
 
   // Demo account credentials
   static const String demoEmail = 'test@gmail.com';
@@ -13,7 +13,7 @@ class AppConstants {
   // ============================================
   // API Configuration
   // ============================================
-  static const String baseUrl = 'http://localhost:3000/api/v1';
+  static const String baseUrl = 'http://192.168.1.43:3000/api/v1';
   // For Android Emulator, use: 'http://10.0.2.2:3000/api/v1'
   // For iOS Simulator, use: 'http://localhost:3000/api/v1'
   // For physical device, use your computer's IP: 'http://192.168.x.x:3000/api/v1'

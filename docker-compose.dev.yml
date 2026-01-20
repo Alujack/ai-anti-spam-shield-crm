@@ -1,0 +1,34 @@
+version: '3.8'
+
+services:
+  backend:
+    build:
+      context: ./ai-anti-spam-shield-backend
+      dockerfile: Dockerfile.dev
+    environment:
+      NODE_ENV: development
+      LOG_LEVEL: debug
+    volumes:
+      - ./ai-anti-spam-shield-backend/src:/app/src:ro
+    command: ["npm", "run", "dev"]
+
+  ml-service:
+    volumes:
+      - ./ai-anti-spam-shield-service-model/app:/app/app:ro
+    command: ["uvicorn", "app.main:app", "--reload", "--host", "0.0.0.0", "--port", "8000"]
+
+  # Disable workers in dev (run from backend)
+  text-worker:
+    profiles:
+      - workers
+  voice-worker:
+    profiles:
+      - workers
+  url-worker:
+    profiles:
+      - workers
+
+  # Disable gateway in dev (direct backend access)
+  gateway:
+    profiles:
+      - production

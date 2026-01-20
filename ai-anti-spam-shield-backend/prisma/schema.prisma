@@ -1,15 +1,18 @@
-// This is your Prisma schema file
-// Learn more about it in the docs: https://pris.ly/d/prisma-schema
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
 
 generator client {
   provider = "prisma-client-js"
 }
 
 datasource db {
-  provider = "sqlite"
+  provider = "postgresql"
   url      = env("DATABASE_URL")
 }
 
+// ===========================================
+// USER MODEL
+// ===========================================
 model User {
   id        String   @id @default(uuid())
   email     String   @unique
@@ -24,51 +27,42 @@ model User {
   scanHistories         ScanHistory[]
   reports               Report[]
   phishingScanHistories PhishingScanHistory[]
+  scanJobs              ScanJob[]
+  feedback              UserFeedback[]
 
+  @@index([email])
+  @@index([role])
   @@map("users")
 }
 
+// ===========================================
+// SCAN HISTORY (Enhanced)
+// ===========================================
 model ScanHistory {
-  id         String   @id @default(uuid())
-  userId     String
-  message    String
-  isSpam     Boolean
-  confidence Float
-  prediction String
-  details    String?
-  scanType   String?  // 'text' or 'voice'
-  scannedAt  DateTime @default(now())
+  id               String   @id @default(uuid())
+  userId           String
+  message          String   // Will be encrypted in Phase 8
+  messageHash      String?  // For deduplication
+  isSpam           Boolean
+  confidence       Float
+  prediction       String
+  scanType         String?  // text, voice
+  details          String?  // JSON string
+  modelVersion     String?  // Track which model version was used
+  scannedAt        DateTime @default(now())
 
-  // Relations
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  @@map("scan_histories")
   @@index([userId])
   @@index([scannedAt])
+  @@index([messageHash])
+  @@index([modelVersion])
+  @@map("scan_histories")
 }
 
-model Report {
-  id          String   @id @default(uuid())
-  userId      String
-  messageText String
-  reportType  String
-  description String?
-  url         String?
-  phoneNumber String?
-  senderInfo  String?
-  status      String   @default("PENDING")
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-
-  // Relations
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@map("reports")
-  @@index([userId])
-  @@index([status])
-  @@index([createdAt])
-}
-
+// ===========================================
+// PHISHING SCAN HISTORY
+// ===========================================
 model PhishingScanHistory {
   id            String   @id @default(uuid())
   userId        String
@@ -78,17 +72,125 @@ model PhishingScanHistory {
   confidence    Float
   phishingType  String   // EMAIL, SMS, URL, NONE
   threatLevel   String   // CRITICAL, HIGH, MEDIUM, LOW, NONE
-  indicators    String   // JSON array of detected indicators
-  urlsAnalyzed  String?  // JSON array of URL analysis results
+  indicators    String   // JSON array of indicators
+  urlsAnalyzed  String?  // JSON array of URLs
   brandDetected String?  // Detected brand impersonation
+  modelVersion  String?
   scannedAt     DateTime @default(now())
 
-  // Relations
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  @@map("phishing_scan_histories")
   @@index([userId])
   @@index([scannedAt])
   @@index([phishingType])
   @@index([threatLevel])
+  @@map("phishing_scan_histories")
+}
+
+// ===========================================
+// REPORT MODEL
+// ===========================================
+model Report {
+  id          String    @id @default(uuid())
+  userId      String
+  messageText String
+  reportType  String    // SPAM, PHISHING, SCAM, SUSPICIOUS, OTHER
+  description String?
+  url         String?
+  phoneNumber String?
+  senderInfo  String?
+  status      String    @default("PENDING") // PENDING, REVIEWING, RESOLVED, DISMISSED
+  resolvedBy  String?
+  resolvedAt  DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([status])
+  @@index([reportType])
+  @@index([createdAt])
+  @@map("reports")
+}
+
+// ===========================================
+// SCAN JOB (NEW - Async Processing)
+// ===========================================
+model ScanJob {
+  id          String    @id @default(uuid())
+  userId      String?
+  type        String    // text, voice, url
+  status      String    @default("pending") // pending, processing, completed, failed
+  priority    Int       @default(0)
+  input       String    // Encrypted input data
+  inputHash   String    // For cache lookup
+  result      Json?     // Scan result
+  error       String?   // Error message if failed
+  attempts    Int       @default(0)
+  createdAt   DateTime  @default(now())
+  startedAt   DateTime?
+  completedAt DateTime?
+
+  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([status])
+  @@index([userId])
+  @@index([inputHash])
+  @@index([type])
+  @@index([createdAt])
+  @@map("scan_jobs")
+}
+
+// ===========================================
+// USER FEEDBACK (NEW - Phase 5)
+// ===========================================
+model UserFeedback {
+  id                 String    @id @default(uuid())
+  userId             String
+  scanHistoryId      String?
+  phishingHistoryId  String?
+  originalPrediction String
+  actualLabel        String    // spam, ham, phishing, safe
+  feedbackType       String    // false_positive, false_negative, confirmed
+  userComment        String?
+  status             String    @default("pending") // pending, approved, rejected
+  reviewedBy         String?
+  reviewedAt         DateTime?
+  createdAt          DateTime  @default(now())
+
+  // Retraining pipeline
+  includedInTraining Boolean  @default(false)
+  trainingBatch      String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([status])
+  @@index([includedInTraining])
+  @@index([feedbackType])
+  @@index([userId])
+  @@index([createdAt])
+  @@map("user_feedback")
+}
+
+// ===========================================
+// MODEL VERSION (NEW - Phase 5)
+// ===========================================
+model ModelVersion {
+  id            String    @id @default(uuid())
+  modelType     String    // sms, voice, phishing
+  version       String    // e.g., "v2.1.0"
+  modelPath     String    // Path to model file
+  metrics       Json      // {accuracy, recall, precision, f1}
+  trainedAt     DateTime
+  deployedAt    DateTime?
+  status        String    // training, testing, deployed, rolled_back
+  feedbackBatch String?   // Reference to feedback batch used for training
+  changelog     String?
+  createdBy     String?
+
+  @@unique([modelType, version])
+  @@index([modelType, status])
+  @@index([deployedAt])
+  @@map("model_versions")
 }

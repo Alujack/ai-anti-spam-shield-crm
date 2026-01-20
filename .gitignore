@@ -43,3 +43,21 @@ node_modules/
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+
+# Docker
+*.log
+
+# Database
+*.db
+*.sqlite
+*.sqlite3
+
+# Logs
+logs/
+
+# Volumes (Docker)
+postgres-data/
+redis-data/
+ml-models/
+grafana-data/
+prometheus-data/
