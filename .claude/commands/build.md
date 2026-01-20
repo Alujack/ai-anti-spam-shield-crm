@@ -82,6 +82,35 @@ cd /opt/school-project/ai-anti-spam-shield/ai-anti-spam-shield-backend
 yarn dev
 ```
 
+### Step 7: Setup Flutter Mobile App (Optional)
+
+If building the mobile app, ensure Flutter dependencies are installed:
+
+```bash
+cd /opt/school-project/ai-anti-spam-shield/ai_anti_spam_shield_mobile
+flutter pub get
+```
+
+For iOS builds, set up the correct Xcode environment:
+
+```bash
+export DEVELOPER_DIR=/Applications/Xcode26.app/Contents/Developer
+```
+
+Run the app:
+
+```bash
+cd /opt/school-project/ai-anti-spam-shield/ai_anti_spam_shield_mobile
+flutter run
+```
+
+Or use the startup script:
+
+```bash
+source /opt/school-project/ai-anti-spam-shield/ai_anti_spam_shield_mobile/mobile-startup.sh
+flutter run
+```
+
 ## Service Endpoints
 
 After successful build:
@@ -96,9 +125,16 @@ After successful build:
 - Health Check: http://localhost:3000/health
 - API Docs: http://localhost:3000/api-docs
 - API Base: http://localhost:3000/api/v1
+- WebSocket: ws://localhost:3000/ws
+
+**Mobile App:**
+- Connects to backend at configured API endpoint
+- Uses WebSocket for real-time updates
 
 ## Notes
 
 - The ML model training may take a few minutes on first run as it downloads datasets from Hugging Face
 - Both services should be running for full functionality
 - The backend connects to the ML service for spam/phishing predictions
+- The mobile app requires the backend server to be running
+- For iOS development, ensure Xcode 26 is properly configured

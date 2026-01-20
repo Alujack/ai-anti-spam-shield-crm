@@ -31,7 +31,33 @@ class SpamPredictor:
     # Minimum confidence threshold to classify as spam
     # Messages below this threshold are considered "ham" even if model predicts spam
     # This reduces false positives for ambiguous messages
-    SPAM_CONFIDENCE_THRESHOLD = 0.75  # 75%
+    # Increased from 0.75 to 0.80 to reduce false positives on friendly messages
+    SPAM_CONFIDENCE_THRESHOLD = 0.80  # 80%
+
+    # Common safe greeting patterns that should not be flagged as spam
+    SAFE_GREETING_PATTERNS = [
+        r'^hi+\s*$',
+        r'^hello+\s*$',
+        r'^hey+\s*$',
+        r'^hi+\s+(there|friend|friends|everyone|all|guys?|buddy|mate)?\s*[!?.]*$',
+        r'^hello+\s+(there|friend|friends|everyone|all|guys?|buddy|mate)?\s*[!?.]*$',
+        r'^hey+\s+(there|friend|friends|everyone|all|guys?|buddy|mate)?\s*[!?.]*$',
+        r'^how\s+are\s+you(\s+today)?(\s+my\s+friend)?\s*[?!.]*$',
+        r'^how(\'s|\s+is)\s+(it\s+going|everything|life|your\s+day)\s*[?!.]*$',
+        r'^what(\'s|\s+is)\s+up\s*[?!.]*$',
+        r'^good\s+(morning|afternoon|evening|night)\s*[!.]*$',
+        r'^greetings?\s*[!.]*$',
+        r'^yo+\s*[!.]*$',
+        r'^sup\s*[?!.]*$',
+        r'^howdy\s*[!.]*$',
+        r'^nice\s+to\s+(meet|see)\s+you\s*[!.]*$',
+        r'^how\s+have\s+you\s+been\s*[?!.]*$',
+        r'^long\s+time\s+no\s+see\s*[!.]*$',
+        r'^(how\s+are\s+you\s+)?(doing|going)\s*(today|my\s+friend)?\s*[?!.]*$',
+    ]
+
+    # Minimum word count for reliable spam detection
+    MIN_WORDS_FOR_SPAM_CHECK = 3
 
     def __init__(self, model_dir='model'):
         """Initialize the predictor with trained model"""
@@ -63,6 +89,19 @@ class SpamPredictor:
         
         print("✅ Model loaded successfully!")
     
+    def is_safe_greeting(self, text):
+        """Check if text is a common safe greeting that should not be flagged as spam"""
+        trimmed = text.strip()
+        for pattern in self.SAFE_GREETING_PATTERNS:
+            if re.match(pattern, trimmed, re.IGNORECASE):
+                return True
+        return False
+
+    def is_too_short(self, text):
+        """Check if text is too short for reliable spam detection"""
+        words = text.strip().split()
+        return len(words) < self.MIN_WORDS_FOR_SPAM_CHECK
+
     def preprocess_text(self, text):
         """Clean and preprocess text"""
         # Convert to lowercase
@@ -103,13 +142,81 @@ class SpamPredictor:
             'exclamation_count': text.count('!'),
             'question_count': text.count('?'),
             'currency_symbols': bool(re.search(r'[$£€¥]', text)),
-            'urgency_words': bool(re.search(r'\b(urgent|asap|now|immediately|hurry)\b', text, re.IGNORECASE)),
-            'spam_keywords': bool(re.search(r'\b(free|win|winner|prize|claim|click|buy|offer|deal)\b', text, re.IGNORECASE)),
+            'urgency_words': bool(re.search(r'\b(urgent|urgently|asap|now|immediately|hurry|quick|fast)\b', text, re.IGNORECASE)),
+            'spam_keywords': bool(re.search(r'\b(free|win|won|winner|prize|claim|click|buy|offer|deal|congratulations|selected|lucky)\b', text, re.IGNORECASE)),
+            'money_reference': bool(re.search(r'(\$|£|€|¥)\s*\d+|\d+\s*(dollar|pound|euro|usd|gbp)', text, re.IGNORECASE)),
+            'scam_patterns': bool(re.search(r'\b(claim\s+(your|the)|you\s+(won|have\s+won)|verify\s+(your|now)|act\s+now|limited\s+time|expir(e|ing|es))\b', text, re.IGNORECASE)),
         }
         return features
+
+    def calculate_spam_boost(self, features):
+        """
+        Calculate a spam probability boost based on rule-based features.
+        This helps catch obvious spam that the ML model might miss.
+
+        Only boost when there are CLEAR scam indicators, not just money mentions.
+        """
+        boost = 0.0
+        indicators = []
+
+        # Scam patterns are the strongest indicator (e.g., "you won", "claim your")
+        has_scam_patterns = features.get('scam_patterns')
+        has_spam_keywords = features.get('spam_keywords')
+        has_money = features.get('money_reference') or features.get('currency_symbols')
+        has_urgency = features.get('urgency_words')
+
+        # Very strong: scam patterns + money = almost certainly spam
+        if has_scam_patterns and has_money:
+            boost += 0.45
+            indicators.append('scam_patterns+money')
+        elif has_scam_patterns:
+            # Scam patterns alone are still strong indicators
+            boost += 0.35
+            indicators.append('scam_patterns')
+
+        # Strong: spam keywords (win, prize, claim) + money reference
+        if has_spam_keywords and has_money and not has_scam_patterns:
+            boost += 0.30
+            indicators.append('spam_keywords+money')
+
+        # Moderate: urgency + spam keywords
+        if has_urgency and has_spam_keywords:
+            boost += 0.15
+            indicators.append('urgency+spam_keywords')
+
+        # Note: Money reference alone does NOT boost - people legitimately discuss money
+        # Only boost when combined with scam/spam indicators
+
+        # Cap the boost at 0.50 to avoid overriding the model completely
+        return min(boost, 0.50), indicators
     
     def predict(self, text):
         """Predict if text is spam or not"""
+        # Extract features for explainability (before any processing)
+        features = self.extract_features(text)
+
+        # Check if this is a safe greeting - bypass spam detection
+        if self.is_safe_greeting(text):
+            return {
+                'is_spam': False,
+                'prediction': 'ham',
+                'confidence': 0.95,  # High confidence it's safe
+                'probability': 0.05,  # Very low spam probability
+                'probabilities': {
+                    'ham': 0.95,
+                    'spam': 0.05
+                },
+                'details': {
+                    'features': features,
+                    'processed_text_length': 0,
+                    'original_text_length': len(text),
+                    'threshold_applied': self.SPAM_CONFIDENCE_THRESHOLD,
+                    'raw_prediction': 'ham',
+                    'bypass_reason': 'safe_greeting_pattern',
+                    'is_greeting': True
+                }
+            }
+
         # Preprocess
         processed_text = self.preprocess_text(text)
 
@@ -120,12 +227,23 @@ class SpamPredictor:
         raw_prediction = self.model.predict(text_vectorized)[0]
         probabilities = self.model.predict_proba(text_vectorized)[0]
 
-        # Extract features for explainability
-        features = self.extract_features(text)
-
         # Apply confidence threshold to reduce false positives
         # Only classify as spam if confidence exceeds threshold
         spam_probability = float(probabilities[1])
+        original_spam_probability = spam_probability
+
+        # Apply penalty for very short messages to reduce false positives
+        too_short = self.is_too_short(text)
+        if too_short and spam_probability < 0.90:
+            # Reduce spam probability for short messages (they're often greetings)
+            spam_probability = spam_probability * 0.6
+
+        # Apply rule-based boost for obvious spam patterns the ML model might miss
+        spam_boost, boost_indicators = self.calculate_spam_boost(features)
+        if spam_boost > 0:
+            # Boost spam probability but cap at 0.99
+            spam_probability = min(spam_probability + spam_boost, 0.99)
+
         is_spam = spam_probability >= self.SPAM_CONFIDENCE_THRESHOLD
 
         # Prepare result
@@ -135,7 +253,7 @@ class SpamPredictor:
             'confidence': spam_probability if is_spam else float(probabilities[0]),
             'probability': spam_probability,  # Spam probability
             'probabilities': {
-                'ham': float(probabilities[0]),
+                'ham': 1 - spam_probability,
                 'spam': spam_probability
             },
             'details': {
@@ -143,7 +261,11 @@ class SpamPredictor:
                 'processed_text_length': len(processed_text),
                 'original_text_length': len(text),
                 'threshold_applied': self.SPAM_CONFIDENCE_THRESHOLD,
-                'raw_prediction': 'spam' if raw_prediction else 'ham'
+                'raw_prediction': 'spam' if raw_prediction else 'ham',
+                'short_message_penalty_applied': too_short,
+                'rule_based_boost': spam_boost,
+                'boost_indicators': boost_indicators,
+                'ml_spam_probability': original_spam_probability
             }
         }
 
@@ -174,11 +296,37 @@ class MultiModelPredictor:
     """
 
     # Confidence thresholds per model type
+    # Increased thresholds to reduce false positives on friendly messages
     THRESHOLDS = {
-        'sms': 0.75,
-        'voice': 0.70,
-        'phishing': 0.65
+        'sms': 0.80,    # Increased from 0.75
+        'voice': 0.80,  # Increased from 0.70
+        'phishing': 0.75  # Increased from 0.65
     }
+
+    # Common safe greeting patterns
+    SAFE_GREETING_PATTERNS = [
+        r'^hi+\s*$',
+        r'^hello+\s*$',
+        r'^hey+\s*$',
+        r'^hi+\s+(there|friend|friends|everyone|all|guys?|buddy|mate)?\s*[!?.]*$',
+        r'^hello+\s+(there|friend|friends|everyone|all|guys?|buddy|mate)?\s*[!?.]*$',
+        r'^hey+\s+(there|friend|friends|everyone|all|guys?|buddy|mate)?\s*[!?.]*$',
+        r'^how\s+are\s+you(\s+today)?(\s+my\s+friend)?\s*[?!.]*$',
+        r'^how(\'s|\s+is)\s+(it\s+going|everything|life|your\s+day)\s*[?!.]*$',
+        r'^what(\'s|\s+is)\s+up\s*[?!.]*$',
+        r'^good\s+(morning|afternoon|evening|night)\s*[!.]*$',
+        r'^greetings?\s*[!.]*$',
+        r'^yo+\s*[!.]*$',
+        r'^sup\s*[?!.]*$',
+        r'^howdy\s*[!.]*$',
+        r'^nice\s+to\s+(meet|see)\s+you\s*[!.]*$',
+        r'^how\s+have\s+you\s+been\s*[?!.]*$',
+        r'^long\s+time\s+no\s+see\s*[!.]*$',
+        r'^(how\s+are\s+you\s+)?(doing|going)\s*(today|my\s+friend)?\s*[?!.]*$',
+    ]
+
+    # Minimum word count for reliable spam detection
+    MIN_WORDS_FOR_SPAM_CHECK = 3
 
     def __init__(self, models_dir: str = 'trained_models'):
         """
@@ -257,6 +405,19 @@ class MultiModelPredictor:
             if custom_features_path.exists():
                 self.feature_extractors[model_type] = CombinedFeatureExtractor()
 
+    def _is_safe_greeting(self, text: str) -> bool:
+        """Check if text is a common safe greeting that should not be flagged as spam"""
+        trimmed = text.strip()
+        for pattern in self.SAFE_GREETING_PATTERNS:
+            if re.match(pattern, trimmed, re.IGNORECASE):
+                return True
+        return False
+
+    def _is_too_short(self, text: str) -> bool:
+        """Check if text is too short for reliable spam detection"""
+        words = text.strip().split()
+        return len(words) < self.MIN_WORDS_FOR_SPAM_CHECK
+
     def _preprocess_text(self, text: str, model_type: str = 'sms') -> str:
         """Preprocess text based on model type"""
         if not isinstance(text, str):
@@ -329,6 +490,36 @@ class MultiModelPredictor:
         if model_type not in self.models:
             raise ValueError(f"Model '{model_type}' not loaded. Available: {list(self.models.keys())}")
 
+        # Label mapping
+        labels = {
+            'sms': ('ham', 'spam'),
+            'voice': ('legitimate', 'scam'),
+            'phishing': ('legitimate', 'phishing')
+        }
+        negative_label, positive_label = labels.get(model_type, ('negative', 'positive'))
+        threshold = self.THRESHOLDS.get(model_type, 0.80)
+
+        # Check if this is a safe greeting - bypass spam detection
+        if self._is_safe_greeting(text):
+            return {
+                'is_threat': False,
+                'prediction': negative_label,
+                'confidence': 0.95,  # High confidence it's safe
+                'threat_probability': 0.05,
+                'probabilities': {
+                    negative_label: 0.95,
+                    positive_label: 0.05
+                },
+                'model_type': model_type,
+                'threshold': threshold,
+                'details': {
+                    'features': self._extract_text_features(text),
+                    'raw_prediction': negative_label,
+                    'bypass_reason': 'safe_greeting_pattern',
+                    'is_greeting': True
+                }
+            }
+
         # Extract features
         features = self._extract_features(text, model_type)
 
@@ -338,16 +529,14 @@ class MultiModelPredictor:
 
         # Apply threshold
         positive_prob = float(probabilities[1])
-        threshold = self.THRESHOLDS.get(model_type, 0.75)
-        is_positive = positive_prob >= threshold
 
-        # Label mapping
-        labels = {
-            'sms': ('ham', 'spam'),
-            'voice': ('legitimate', 'scam'),
-            'phishing': ('legitimate', 'phishing')
-        }
-        negative_label, positive_label = labels.get(model_type, ('negative', 'positive'))
+        # Apply penalty for very short messages to reduce false positives
+        too_short = self._is_too_short(text)
+        if too_short and positive_prob < 0.90:
+            # Reduce threat probability for short messages
+            positive_prob = positive_prob * 0.6
+
+        is_positive = positive_prob >= threshold
 
         return {
             'is_threat': is_positive,
@@ -362,7 +551,8 @@ class MultiModelPredictor:
             'threshold': threshold,
             'details': {
                 'features': self._extract_text_features(text),
-                'raw_prediction': positive_label if raw_prediction else negative_label
+                'raw_prediction': positive_label if raw_prediction else negative_label,
+                'short_message_penalty_applied': too_short
             }
         }
 

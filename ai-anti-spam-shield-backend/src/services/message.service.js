@@ -9,6 +9,83 @@ const logger = require('../utils/logger');
  * Handles business logic for message operations
  */
 
+// Detection threshold - minimum spam confidence to flag as spam
+// Increased from 0.65 to 0.80 to reduce false positives
+const DETECTION_THRESHOLD = 0.80;
+
+// Minimum word count to apply spam detection
+// Very short messages (greetings) are more likely to be false positives
+const MIN_WORDS_FOR_SPAM_CHECK = 3;
+
+// Common safe greeting patterns that should not be flagged as spam
+const SAFE_GREETING_PATTERNS = [
+  /^hi+\s*$/i,
+  /^hello+\s*$/i,
+  /^hey+\s*$/i,
+  /^hi+\s+(there|friend|friends|everyone|all|guys?|buddy|mate)?\s*[!?.]*$/i,
+  /^hello+\s+(there|friend|friends|everyone|all|guys?|buddy|mate)?\s*[!?.]*$/i,
+  /^hey+\s+(there|friend|friends|everyone|all|guys?|buddy|mate)?\s*[!?.]*$/i,
+  /^how\s+are\s+you(\s+today)?(\s+my\s+friend)?\s*[?!.]*$/i,
+  /^how('s|\s+is)\s+(it\s+going|everything|life|your\s+day)\s*[?!.]*$/i,
+  /^what('s|\s+is)\s+up\s*[?!.]*$/i,
+  /^good\s+(morning|afternoon|evening|night)\s*[!.]*$/i,
+  /^greetings?\s*[!.]*$/i,
+  /^yo+\s*[!.]*$/i,
+  /^sup\s*[?!.]*$/i,
+  /^howdy\s*[!.]*$/i,
+  /^nice\s+to\s+(meet|see)\s+you\s*[!.]*$/i,
+  /^how\s+have\s+you\s+been\s*[?!.]*$/i,
+  /^long\s+time\s+no\s+see\s*[!.]*$/i,
+  /^(how\s+are\s+you\s+)?(doing|going)\s*(today|my\s+friend)?\s*[?!.]*$/i
+];
+
+// Safe phrase patterns that reduce spam likelihood
+const SAFE_PHRASE_PATTERNS = [
+  /^(hi|hello|hey)\s+how\s+are\s+you/i,
+  /^how\s+are\s+you\s+(my\s+)?(friend|friends|buddy|mate)/i,
+  /^(good\s+)?(morning|afternoon|evening)/i,
+  /^thanks?\s*(you)?\s*(so\s+much|very\s+much)?\s*[!.]*$/i,
+  /^(you're|you\s+are)\s+welcome\s*[!.]*$/i,
+  /^(see|talk\s+to)\s+you\s+(later|soon|tomorrow)\s*[!.]*$/i,
+  /^take\s+care\s*[!.]*$/i,
+  /^have\s+a\s+(good|great|nice)\s+(day|one|evening|night)\s*[!.]*$/i
+];
+
+/**
+ * Check if a message is a safe greeting or common phrase
+ * @param {string} text - The message text
+ * @returns {boolean} - True if it's a safe message
+ */
+function isSafeGreeting(text) {
+  const trimmedText = text.trim();
+
+  // Check against safe greeting patterns
+  for (const pattern of SAFE_GREETING_PATTERNS) {
+    if (pattern.test(trimmedText)) {
+      return true;
+    }
+  }
+
+  // Check against safe phrase patterns
+  for (const pattern of SAFE_PHRASE_PATTERNS) {
+    if (pattern.test(trimmedText)) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+/**
+ * Check if message is too short to reliably detect spam
+ * @param {string} text - The message text
+ * @returns {boolean} - True if message is too short
+ */
+function isTooShortForSpamCheck(text) {
+  const words = text.trim().split(/\s+/).filter(w => w.length > 0);
+  return words.length < MIN_WORDS_FOR_SPAM_CHECK;
+}
+
 class MessageService {
   /**
    * Scan voice for spam using AI model service
@@ -60,11 +137,28 @@ class MessageService {
        * - Low raw confidence (e.g., 0.15) = 15% likely to be spam = 85% likely to be SAFE
        *
        * Detection Logic:
-       * - If spam confidence >= 0.65 (65%) → SPAM DETECTED with that confidence
-       * - If spam confidence < 0.65 → SAFE with (1 - spam_confidence) as safety confidence
+       * - If spam confidence >= DETECTION_THRESHOLD (80%) → SPAM DETECTED with that confidence
+       * - If spam confidence < DETECTION_THRESHOLD → SAFE with (1 - spam_confidence) as safety confidence
        */
-      const DETECTION_THRESHOLD = 0.65;
-      const rawSpamConfidence = response.data.confidence || response.data.probability || 0;
+      let rawSpamConfidence = response.data.confidence || response.data.probability || 0;
+
+      // Check if transcribed text is a safe greeting
+      const transcribedText = response.data.transcribed_text || '';
+      if (isSafeGreeting(transcribedText)) {
+        logger.info('Voice transcription detected as safe greeting', {
+          text: transcribedText.substring(0, 50)
+        });
+        rawSpamConfidence = Math.min(rawSpamConfidence, 0.20); // Cap at 20%
+      }
+
+      // Apply short message penalty for voice transcripts too
+      if (isTooShortForSpamCheck(transcribedText) && rawSpamConfidence < 0.90) {
+        logger.info('Applying short message penalty to voice spam confidence', {
+          original: rawSpamConfidence,
+          wordCount: transcribedText.trim().split(/\s+/).length
+        });
+        rawSpamConfidence = rawSpamConfidence * 0.6;
+      }
 
       // Determine if it's spam based on the spam confidence
       const isSpam = rawSpamConfidence >= DETECTION_THRESHOLD;
@@ -82,11 +176,11 @@ class MessageService {
         dangerCauses.push({
           type: 'spam_detected',
           title: 'Spam Detected',
-          description: `Our AI detected this as spam with ${(rawSpamConfidence * 100).toFixed(1)}% confidence. This exceeds our ${(DETECTION_THRESHOLD * 100)}% threshold for spam detection.`,
-          severity: rawSpamConfidence >= 0.85 ? 'critical' : rawSpamConfidence >= 0.75 ? 'high' : 'medium'
+          description: `Our AI detected this as spam with ${(rawSpamConfidence * 100).toFixed(1)}% confidence. This exceeds our ${(DETECTION_THRESHOLD * 100).toFixed(0)}% threshold for spam detection.`,
+          severity: rawSpamConfidence >= 0.90 ? 'critical' : rawSpamConfidence >= 0.85 ? 'high' : 'medium'
         });
 
-        if (rawSpamConfidence >= 0.85) {
+        if (rawSpamConfidence >= 0.90) {
           dangerCauses.push({
             type: 'high_spam_confidence',
             title: 'Very High Spam Probability',
@@ -95,7 +189,7 @@ class MessageService {
           });
         }
 
-        if (rawSpamConfidence >= 0.65 && rawSpamConfidence < 0.85) {
+        if (rawSpamConfidence >= 0.80 && rawSpamConfidence < 0.90) {
           dangerCauses.push({
             type: 'moderate_spam_confidence',
             title: 'Moderate Spam Probability',
@@ -162,7 +256,7 @@ class MessageService {
         detection_threshold: DETECTION_THRESHOLD,
         danger_causes: dangerCauses,
         risk_level: isSpam
-          ? (rawSpamConfidence >= 0.85 ? 'CRITICAL' : rawSpamConfidence >= 0.75 ? 'HIGH' : 'MEDIUM')
+          ? (rawSpamConfidence >= 0.90 ? 'CRITICAL' : rawSpamConfidence >= 0.85 ? 'HIGH' : 'MEDIUM')
           : 'NONE',
         confidence_label: isSpam ? 'Spam Confidence' : 'Safety Confidence',
         ...(response.data.details && { details: { ...response.data.details, danger_causes: dangerCauses } })
@@ -230,8 +324,43 @@ class MessageService {
    */
   async scanTextForSpam(messageText, userId = null) {
     try {
+      // First, check if this is a safe greeting or common phrase
+      // This prevents false positives on friendly messages like "Hi how are you"
+      if (isSafeGreeting(messageText)) {
+        logger.info('Message detected as safe greeting, skipping spam check', {
+          message: messageText.substring(0, 50)
+        });
+
+        const result = {
+          is_spam: false,
+          confidence: 0.95, // High confidence it's safe
+          raw_spam_confidence: 0.05,
+          prediction: 'ham',
+          message: messageText,
+          timestamp: new Date().toISOString(),
+          is_safe: true,
+          detection_threshold: DETECTION_THRESHOLD,
+          danger_causes: [],
+          risk_level: 'NONE',
+          confidence_label: 'Safety Confidence',
+          details: {
+            features: { is_greeting: true },
+            bypass_reason: 'safe_greeting_pattern'
+          }
+        };
+
+        if (userId) {
+          await this.saveScanHistory(userId, messageText, result);
+        }
+
+        return result;
+      }
+
+      // Check if message is too short to reliably detect spam
+      const tooShort = isTooShortForSpamCheck(messageText);
+
       const aiServiceUrl = `${config.ai.serviceUrl}/predict`;
-      
+
       logger.info('Calling AI service', { url: aiServiceUrl });
 
       // Call the AI model service
@@ -252,8 +381,8 @@ class MessageService {
         throw ApiError.internal('AI service returned empty response');
       }
 
-      logger.info('AI service response received', { 
-        status: response.status 
+      logger.info('AI service response received', {
+        status: response.status
       });
 
       /**
@@ -263,11 +392,21 @@ class MessageService {
        * - Low raw confidence (e.g., 0.15) = 15% likely to be spam = 85% likely to be SAFE
        *
        * Detection Logic:
-       * - If spam confidence >= 0.65 (65%) → SPAM DETECTED with that confidence
-       * - If spam confidence < 0.65 → SAFE with (1 - spam_confidence) as safety confidence
+       * - If spam confidence >= DETECTION_THRESHOLD (80%) → SPAM DETECTED with that confidence
+       * - If spam confidence < DETECTION_THRESHOLD → SAFE with (1 - spam_confidence) as safety confidence
+       * - For very short messages, apply additional leniency
        */
-      const DETECTION_THRESHOLD = 0.65;
-      const rawSpamConfidence = response.data.confidence || response.data.probability || 0;
+      let rawSpamConfidence = response.data.confidence || response.data.probability || 0;
+
+      // For very short messages, reduce spam confidence to avoid false positives
+      // Short casual messages are often flagged incorrectly
+      if (tooShort && rawSpamConfidence < 0.90) {
+        logger.info('Applying short message penalty to spam confidence', {
+          original: rawSpamConfidence,
+          wordCount: messageText.trim().split(/\s+/).length
+        });
+        rawSpamConfidence = rawSpamConfidence * 0.6; // Reduce confidence by 40%
+      }
 
       // Determine if it's spam based on the spam confidence
       const isSpam = rawSpamConfidence >= DETECTION_THRESHOLD;
@@ -285,11 +424,11 @@ class MessageService {
         dangerCauses.push({
           type: 'spam_detected',
           title: 'Spam Detected',
-          description: `Our AI detected this as spam with ${(rawSpamConfidence * 100).toFixed(1)}% confidence. This exceeds our ${(DETECTION_THRESHOLD * 100)}% threshold for spam detection.`,
-          severity: rawSpamConfidence >= 0.85 ? 'critical' : rawSpamConfidence >= 0.75 ? 'high' : 'medium'
+          description: `Our AI detected this as spam with ${(rawSpamConfidence * 100).toFixed(1)}% confidence. This exceeds our ${(DETECTION_THRESHOLD * 100).toFixed(0)}% threshold for spam detection.`,
+          severity: rawSpamConfidence >= 0.90 ? 'critical' : rawSpamConfidence >= 0.85 ? 'high' : 'medium'
         });
 
-        if (rawSpamConfidence >= 0.85) {
+        if (rawSpamConfidence >= 0.90) {
           dangerCauses.push({
             type: 'high_spam_confidence',
             title: 'Very High Spam Probability',
@@ -298,7 +437,7 @@ class MessageService {
           });
         }
 
-        if (rawSpamConfidence >= 0.65 && rawSpamConfidence < 0.85) {
+        if (rawSpamConfidence >= 0.80 && rawSpamConfidence < 0.90) {
           dangerCauses.push({
             type: 'moderate_spam_confidence',
             title: 'Moderate Spam Probability',
@@ -372,10 +511,11 @@ class MessageService {
         detection_threshold: DETECTION_THRESHOLD,
         danger_causes: dangerCauses,
         risk_level: isSpam
-          ? (rawSpamConfidence >= 0.85 ? 'CRITICAL' : rawSpamConfidence >= 0.75 ? 'HIGH' : 'MEDIUM')
+          ? (rawSpamConfidence >= 0.90 ? 'CRITICAL' : rawSpamConfidence >= 0.85 ? 'HIGH' : 'MEDIUM')
           : 'NONE',
         confidence_label: isSpam ? 'Spam Confidence' : 'Safety Confidence',
-        ...(response.data.details && { details: { ...response.data.details, danger_causes: dangerCauses } })
+        ...(response.data.details && { details: { ...response.data.details, danger_causes: dangerCauses } }),
+        ...(tooShort && { short_message_penalty_applied: true })
       };
 
       // Save to history if user is authenticated
