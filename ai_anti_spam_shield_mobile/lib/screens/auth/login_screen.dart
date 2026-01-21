@@ -61,8 +61,12 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final textPrimaryColor = isDark ? AppColors.darkTextPrimary : AppColors.textPrimary;
+    final textSecondaryColor = isDark ? AppColors.darkTextSecondary : AppColors.textSecondary;
+
     return Scaffold(
-      backgroundColor: AppColors.background,
+      backgroundColor: isDark ? AppColors.darkBackground : AppColors.background,
       body: SafeArea(
         child: SingleChildScrollView(
           child: Padding(
@@ -83,23 +87,23 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                   const SizedBox(height: 24),
                   FadeInDown(
                     delay: const Duration(milliseconds: 100),
-                    child: const Text(
+                    child: Text(
                       'Welcome Back',
                       style: TextStyle(
                         fontSize: 32,
                         fontWeight: FontWeight.bold,
-                        color: AppColors.textPrimary,
+                        color: textPrimaryColor,
                       ),
                     ),
                   ),
                   const SizedBox(height: 8),
                   FadeInDown(
                     delay: const Duration(milliseconds: 200),
-                    child: const Text(
+                    child: Text(
                       'Sign in to protect yourself from spam',
                       style: TextStyle(
                         fontSize: 16,
-                        color: AppColors.textSecondary,
+                        color: textSecondaryColor,
                       ),
                     ),
                   ),
@@ -141,6 +145,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                           _obscurePassword
                               ? Icons.visibility_off
                               : Icons.visibility,
+                          color: textSecondaryColor,
                         ),
                         onPressed: () {
                           setState(() {
@@ -165,9 +170,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        const Text(
+                        Text(
                           "Don't have an account? ",
-                          style: TextStyle(color: AppColors.textSecondary),
+                          style: TextStyle(color: textSecondaryColor),
                         ),
                         TextButton(
                           onPressed: () {

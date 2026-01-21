@@ -7,22 +7,27 @@ import '../services/storage_service.dart';
 class AuthState {
   final User? user;
   final bool isLoading;
+  final bool isInitialized;
   final String? error;
 
   AuthState({
     this.user,
     this.isLoading = false,
+    this.isInitialized = false,
     this.error,
   });
 
   AuthState copyWith({
     User? user,
     bool? isLoading,
+    bool? isInitialized,
     String? error,
+    bool clearUser = false,
   }) {
     return AuthState(
-      user: user ?? this.user,
+      user: clearUser ? null : (user ?? this.user),
       isLoading: isLoading ?? this.isLoading,
+      isInitialized: isInitialized ?? this.isInitialized,
       error: error ?? this.error,
     );
   }
@@ -41,11 +46,27 @@ class AuthNotifier extends Notifier<AuthState> {
 
   Future<void> _checkAuth() async {
     try {
+      // Check if we have a valid token and user stored
+      final token = await StorageService.getToken();
       final user = await StorageService.getUser();
-      state = AuthState(user: user);
+
+      if (token != null && token.isNotEmpty && user != null) {
+        state = AuthState(user: user, isInitialized: true);
+      } else {
+        // Clear any partial data
+        state = AuthState(isInitialized: true);
+      }
     } catch (e) {
-      state = AuthState(error: e.toString());
+      state = AuthState(error: e.toString(), isInitialized: true);
     }
+  }
+
+  /// Check if user is authenticated (can be called from splash screen)
+  Future<bool> checkAuthentication() async {
+    if (!state.isInitialized) {
+      await _checkAuth();
+    }
+    return state.user != null;
   }
 
   Future<void> login({required String email, required String password}) async {
@@ -55,9 +76,9 @@ class AuthNotifier extends Notifier<AuthState> {
         email: email,
         password: password,
       );
-      state = AuthState(user: authResponse.user, isLoading: false);
+      state = AuthState(user: authResponse.user, isLoading: false, isInitialized: true);
     } catch (e) {
-      state = AuthState(isLoading: false, error: _apiService.getErrorMessage(e));
+      state = AuthState(isLoading: false, isInitialized: true, error: _apiService.getErrorMessage(e));
       rethrow;
     }
   }
@@ -76,9 +97,9 @@ class AuthNotifier extends Notifier<AuthState> {
         name: name,
         phone: phone,
       );
-      state = AuthState(user: authResponse.user, isLoading: false);
+      state = AuthState(user: authResponse.user, isLoading: false, isInitialized: true);
     } catch (e) {
-      state = AuthState(isLoading: false, error: _apiService.getErrorMessage(e));
+      state = AuthState(isLoading: false, isInitialized: true, error: _apiService.getErrorMessage(e));
       rethrow;
     }
   }
@@ -105,7 +126,7 @@ class AuthNotifier extends Notifier<AuthState> {
 
   Future<void> logout() async {
     await _apiService.logout();
-    state = AuthState();
+    state = AuthState(isInitialized: true);
   }
 }
 

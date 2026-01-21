@@ -210,15 +210,16 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
     // Initialize deep link service for iOS widget navigation
     await DeepLinkService.initialize(ref);
 
-    // Wait for animation
+    // Check authentication status (this properly awaits storage check)
+    final isAuthenticated = await ref.read(authProvider.notifier).checkAuthentication();
+
+    // Wait for animation to complete (minimum 2 seconds from app start)
     await Future.delayed(const Duration(seconds: 2));
 
     if (!mounted) return;
 
-    // Check if user is logged in
-    final authState = ref.read(authProvider);
-
-    if (authState.user != null) {
+    // Navigate based on authentication status
+    if (isAuthenticated) {
       Navigator.pushReplacementNamed(context, '/home');
     } else {
       Navigator.pushReplacementNamed(context, '/login');

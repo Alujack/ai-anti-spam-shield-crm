@@ -3,7 +3,7 @@
 	archiveVersion = 1;
 	classes = {
 	};
-	objectVersion = 70;
+	objectVersion = 54;
 	objects = {
 
 /* Begin PBXBuildFile section */
@@ -96,7 +96,7 @@
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
-		78EBB3152F20C2FA00997DE1 /* PBXFileSystemSynchronizedBuildFileExceptionSet */ = {
+		78EBB3152F20C2FA00997DE1 /* Exceptions for "AIShieldWidget" folder in "AIShieldWidgetExtension" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
 				Info.plist,
@@ -106,9 +106,40 @@
 /* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
-		78EBB2C92F20C25800997DE1 /* AIShieldWidget */ = {isa = PBXFileSystemSynchronizedRootGroup; explicitFileTypes = {}; explicitFolders = (); path = AIShieldWidget; sourceTree = "<group>"; };
-		78EBB2E82F20C2B900997DE1 /* AIShieldWidget */ = {isa = PBXFileSystemSynchronizedRootGroup; explicitFileTypes = {}; explicitFolders = (); path = AIShieldWidget; sourceTree = "<group>"; };
-		78EBB3062F20C2F700997DE1 /* AIShieldWidget */ = {isa = PBXFileSystemSynchronizedRootGroup; exceptions = (78EBB3152F20C2FA00997DE1 /* PBXFileSystemSynchronizedBuildFileExceptionSet */, ); explicitFileTypes = {}; explicitFolders = (); path = AIShieldWidget; sourceTree = "<group>"; };
+		78EBB2C92F20C25800997DE1 /* AIShieldWidget */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+			);
+			explicitFileTypes = {
+			};
+			explicitFolders = (
+			);
+			path = AIShieldWidget;
+			sourceTree = "<group>";
+		};
+		78EBB2E82F20C2B900997DE1 /* AIShieldWidget */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+			);
+			explicitFileTypes = {
+			};
+			explicitFolders = (
+			);
+			path = AIShieldWidget;
+			sourceTree = "<group>";
+		};
+		78EBB3062F20C2F700997DE1 /* AIShieldWidget */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				78EBB3152F20C2FA00997DE1 /* Exceptions for "AIShieldWidget" folder in "AIShieldWidgetExtension" target */,
+			);
+			explicitFileTypes = {
+			};
+			explicitFolders = (
+			);
+			path = AIShieldWidget;
+			sourceTree = "<group>";
+		};
 /* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -265,8 +296,6 @@
 				78EBB3062F20C2F700997DE1 /* AIShieldWidget */,
 			);
 			name = AIShieldWidgetExtension;
-			packageProductDependencies = (
-			);
 			productName = AIShieldWidgetExtension;
 			productReference = 78EBB3032F20C2F700997DE1 /* AIShieldWidgetExtension.appex */;
 			productType = "com.apple.product-type.app-extension";
@@ -377,13 +406,9 @@
 			inputFileListPaths = (
 				"${PODS_ROOT}/Target Support Files/Pods-Runner/Pods-Runner-frameworks-${CONFIGURATION}-input-files.xcfilelist",
 			);
-			inputPaths = (
-			);
 			name = "[CP] Embed Pods Frameworks";
 			outputFileListPaths = (
 				"${PODS_ROOT}/Target Support Files/Pods-Runner/Pods-Runner-frameworks-${CONFIGURATION}-output-files.xcfilelist",
-			);
-			outputPaths = (
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
@@ -451,13 +476,9 @@
 			inputFileListPaths = (
 				"${PODS_ROOT}/Target Support Files/Pods-Runner/Pods-Runner-resources-${CONFIGURATION}-input-files.xcfilelist",
 			);
-			inputPaths = (
-			);
 			name = "[CP] Copy Pods Resources";
 			outputFileListPaths = (
 				"${PODS_ROOT}/Target Support Files/Pods-Runner/Pods-Runner-resources-${CONFIGURATION}-output-files.xcfilelist",
-			);
-			outputPaths = (
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;

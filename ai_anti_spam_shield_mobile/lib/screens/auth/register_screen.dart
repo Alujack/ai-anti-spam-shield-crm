@@ -75,13 +75,16 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
   @override
   Widget build(BuildContext context) {
     final authState = ref.watch(authProvider);
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final textPrimaryColor = isDark ? AppColors.darkTextPrimary : AppColors.textPrimary;
+    final textSecondaryColor = isDark ? AppColors.darkTextSecondary : AppColors.textSecondary;
 
     return Scaffold(
-      backgroundColor: AppColors.background,
+      backgroundColor: isDark ? AppColors.darkBackground : AppColors.background,
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
-        iconTheme: const IconThemeData(color: AppColors.textPrimary),
+        iconTheme: IconThemeData(color: textPrimaryColor),
       ),
       body: SafeArea(
         child: SingleChildScrollView(
@@ -96,27 +99,27 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                   duration: const Duration(milliseconds: 600),
                   child: Column(
                     children: [
-                      Icon(
+                      const Icon(
                         Icons.shield,
                         size: 80,
                         color: AppColors.primary,
                       ),
                       const SizedBox(height: 16),
-                      const Text(
+                      Text(
                         'Create Account',
                         style: TextStyle(
                           fontSize: 32,
                           fontWeight: FontWeight.bold,
-                          color: AppColors.textPrimary,
+                          color: textPrimaryColor,
                         ),
                       ),
                       const SizedBox(height: 8),
-                      const Text(
+                      Text(
                         'Join us to protect yourself from scams',
                         textAlign: TextAlign.center,
                         style: TextStyle(
                           fontSize: 16,
-                          color: AppColors.textSecondary,
+                          color: textSecondaryColor,
                         ),
                       ),
                     ],
@@ -197,7 +200,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                     suffixIcon: IconButton(
                       icon: Icon(
                         _obscurePassword ? Icons.visibility_off : Icons.visibility,
-                        color: AppColors.textSecondary,
+                        color: textSecondaryColor,
                       ),
                       onPressed: () {
                         setState(() {
@@ -233,7 +236,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                     suffixIcon: IconButton(
                       icon: Icon(
                         _obscureConfirmPassword ? Icons.visibility_off : Icons.visibility,
-                        color: AppColors.textSecondary,
+                        color: textSecondaryColor,
                       ),
                       onPressed: () {
                         setState(() {
@@ -274,10 +277,10 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      const Text(
+                      Text(
                         'Already have an account? ',
                         style: TextStyle(
-                          color: AppColors.textSecondary,
+                          color: textSecondaryColor,
                         ),
                       ),
                       GestureDetector(
