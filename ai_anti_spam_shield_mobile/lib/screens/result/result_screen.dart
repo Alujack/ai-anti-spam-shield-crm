@@ -9,6 +9,7 @@ import '../../widgets/animations/success_checkmark.dart';
 import '../../widgets/animations/threat_alert_animation.dart';
 import '../../widgets/animations/progress_ring.dart';
 import '../../widgets/feedback_buttons.dart';
+import '../report/create_report_screen.dart';
 
 class ResultScreen extends ConsumerWidget {
   const ResultScreen({super.key});
@@ -946,26 +947,18 @@ class ResultScreen extends ConsumerWidget {
                     child: ElevatedButton.icon(
                       onPressed: () {
                         Navigator.pop(context);
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(
-                            content: Row(
-                              children: [
-                                Icon(Icons.check_circle, color: Colors.white, size: 20),
-                                const SizedBox(width: 12),
-                                const Text('Report submitted successfully'),
-                              ],
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => CreateReportScreen(
+                              initialContent: message,
+                              initialType: 'spam',
                             ),
-                            backgroundColor: AppColors.success,
-                            behavior: SnackBarBehavior.floating,
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                            margin: const EdgeInsets.all(16),
                           ),
                         );
                       },
                       icon: const Icon(Icons.send, size: 18),
-                      label: const Text('Submit Report'),
+                      label: const Text('Create Report'),
                       style: ElevatedButton.styleFrom(
                         backgroundColor: AppColors.danger,
                         foregroundColor: Colors.white,

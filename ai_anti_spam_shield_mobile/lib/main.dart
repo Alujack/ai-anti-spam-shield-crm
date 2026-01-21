@@ -15,8 +15,15 @@ import 'screens/report/my_reports_screen.dart';
 import 'screens/dashboard/dashboard_screen.dart';
 import 'providers/auth_provider.dart';
 import 'providers/settings_provider.dart';
+import 'services/widget_service.dart';
+import 'services/deep_link_service.dart';
 
-void main() {
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+
+  // Initialize iOS Home Screen Widget service
+  await WidgetService.initialize();
+
   runApp(
     const ProviderScope(
       child: MyApp(),
@@ -34,6 +41,7 @@ class MyApp extends ConsumerWidget {
     return MaterialApp(
       title: 'AI Shield',
       debugShowCheckedModeBanner: false,
+      navigatorKey: DeepLinkService.navigatorKey,
       themeMode: settingsState.themeMode,
       theme: _buildLightTheme(),
       darkTheme: _buildDarkTheme(),
@@ -195,10 +203,13 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
   @override
   void initState() {
     super.initState();
-    _checkAuth();
+    _initializeAndCheckAuth();
   }
 
-  Future<void> _checkAuth() async {
+  Future<void> _initializeAndCheckAuth() async {
+    // Initialize deep link service for iOS widget navigation
+    await DeepLinkService.initialize(ref);
+
     // Wait for animation
     await Future.delayed(const Duration(seconds: 2));
 
@@ -206,7 +217,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
 
     // Check if user is logged in
     final authState = ref.read(authProvider);
-    
+
     if (authState.user != null) {
       Navigator.pushReplacementNamed(context, '/home');
     } else {

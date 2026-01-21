@@ -60,6 +60,12 @@ dependencies:
   permission_handler: ^12.0.1
   path_provider: ^2.1.1
 
+  # iOS Home Screen Widget
+  home_widget: ^0.6.0
+
+  # Deep Linking
+  uni_links: ^0.5.1
+
 dev_dependencies:
   flutter_test:
     sdk: flutter

@@ -1,5 +1,7 @@
 PODS:
   - Flutter (1.0.0)
+  - home_widget (0.0.1):
+    - Flutter
   - path_provider_foundation (0.0.1):
     - Flutter
     - FlutterMacOS
@@ -10,17 +12,23 @@ PODS:
   - shared_preferences_foundation (0.0.1):
     - Flutter
     - FlutterMacOS
+  - uni_links (0.0.1):
+    - Flutter
 
 DEPENDENCIES:
   - Flutter (from `Flutter`)
+  - home_widget (from `.symlinks/plugins/home_widget/ios`)
   - path_provider_foundation (from `.symlinks/plugins/path_provider_foundation/darwin`)
   - permission_handler_apple (from `.symlinks/plugins/permission_handler_apple/ios`)
   - record_ios (from `.symlinks/plugins/record_ios/ios`)
   - shared_preferences_foundation (from `.symlinks/plugins/shared_preferences_foundation/darwin`)
+  - uni_links (from `.symlinks/plugins/uni_links/ios`)
 
 EXTERNAL SOURCES:
   Flutter:
     :path: Flutter
+  home_widget:
+    :path: ".symlinks/plugins/home_widget/ios"
   path_provider_foundation:
     :path: ".symlinks/plugins/path_provider_foundation/darwin"
   permission_handler_apple:
@@ -29,14 +37,18 @@ EXTERNAL SOURCES:
     :path: ".symlinks/plugins/record_ios/ios"
   shared_preferences_foundation:
     :path: ".symlinks/plugins/shared_preferences_foundation/darwin"
+  uni_links:
+    :path: ".symlinks/plugins/uni_links/ios"
 
 SPEC CHECKSUMS:
   Flutter: cabc95a1d2626b1b06e7179b784ebcf0c0cde467
+  home_widget: 0434835a4c9a75704264feff6be17ea40e0f0d57
   path_provider_foundation: 0b743cbb62d8e47eab856f09262bb8c1ddcfe6ba
   permission_handler_apple: 9878588469a2b0d0fc1e048d9f43605f92e6cec2
   record_ios: 840d21cce013c5a3b2168b74a54ebdb4136359e2
   shared_preferences_foundation: 5086985c1d43c5ba4d5e69a4e8083a389e2909e6
+  uni_links: d97da20c7701486ba192624d99bffaaffcfc298a
 
-PODFILE CHECKSUM: 1b7527646b7cbfb2ab9d46fd5ced3d8bbdb6b17f
+PODFILE CHECKSUM: e69d4027600379b9456055b43e54aa360316c1de
 
 COCOAPODS: 1.16.2

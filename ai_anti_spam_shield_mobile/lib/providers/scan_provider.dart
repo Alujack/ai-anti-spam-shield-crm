@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/scan_result.dart';
 import '../services/api_service.dart';
+import '../services/widget_service.dart';
 
 // Scan State
 class ScanState {
@@ -43,6 +44,9 @@ class ScanNotifier extends Notifier<ScanState> {
     try {
       final result = await _apiService.scanText(message);
       state = state.copyWith(result: result, isLoading: false);
+
+      // Update iOS Home Screen Widget with scan result
+      await _updateWidget(result.isSpam);
     } catch (e) {
       state = state.copyWith(
         isLoading: false,
@@ -58,12 +62,30 @@ class ScanNotifier extends Notifier<ScanState> {
     try {
       final result = await _apiService.scanVoice(audioPath);
       state = state.copyWith(result: result, isLoading: false);
+
+      // Update iOS Home Screen Widget with scan result
+      await _updateWidget(result.isSpam);
     } catch (e) {
       state = state.copyWith(
         isLoading: false,
         error: _apiService.getErrorMessage(e),
       );
       rethrow;
+    }
+  }
+
+  /// Update iOS Home Screen Widget with latest scan data
+  Future<void> _updateWidget(bool isSpam) async {
+    try {
+      final stats = await _apiService.getScanStatistics();
+      await WidgetService.onScanComplete(
+        isSpam: isSpam,
+        totalScans: stats['totalScans'] ?? 0,
+        spamDetected: stats['spamDetected'] ?? 0,
+      );
+    } catch (e) {
+      // Widget update failure shouldn't affect the scan result
+      // Just log the error silently
     }
   }
 
