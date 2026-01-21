@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'package:dio/dio.dart';
 import '../models/user.dart';
 import '../models/scan_result.dart';
@@ -174,6 +175,12 @@ class ApiService {
       return _mockService.scanVoice(audioPath);
     }
     try {
+      // Verify file exists
+      final file = File(audioPath);
+      if (!await file.exists()) {
+        throw Exception('Audio file not found: $audioPath');
+      }
+
       // Determine content type based on file extension
       final filename = audioPath.split('/').last;
       final extension = filename.split('.').last.toLowerCase();
@@ -210,9 +217,29 @@ class ApiService {
         ),
       });
 
-      final response = await _dio.post('/messages/scan-voice', data: formData);
+      final response = await _dio.post(
+        '/messages/scan-voice',
+        data: formData,
+        options: Options(
+          contentType: 'multipart/form-data',
+        ),
+      );
 
       return ScanResult.fromJson(response.data['data']);
+    } on DioException catch (e) {
+      // Extract meaningful error message from response
+      String errorMessage = 'Voice scan failed';
+      if (e.response?.data != null) {
+        final data = e.response!.data;
+        if (data is Map) {
+          errorMessage = data['message'] ?? data['detail'] ?? data['error'] ?? errorMessage;
+        } else if (data is String) {
+          errorMessage = data;
+        }
+      } else if (e.message != null) {
+        errorMessage = e.message!;
+      }
+      throw Exception(errorMessage);
     } catch (e) {
       rethrow;
     }
@@ -738,7 +765,13 @@ class ApiService {
         'useV2': true,
       });
 
-      final response = await _dio.post('/messages/scan-voice', data: formData);
+      final response = await _dio.post(
+        '/messages/scan-voice',
+        data: formData,
+        options: Options(
+          contentType: 'multipart/form-data',
+        ),
+      );
       return ScanResultV2.fromJson(response.data);
     } catch (e) {
       rethrow;
