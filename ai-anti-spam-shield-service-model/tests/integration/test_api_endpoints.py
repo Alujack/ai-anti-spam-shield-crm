@@ -8,7 +8,24 @@ from fastapi.testclient import TestClient
 import sys
 import os
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'app'))
+# Add app directory to path so that relative imports in main.py work
+app_dir = os.path.join(os.path.dirname(__file__), '..', '..', 'app')
+if app_dir not in sys.path:
+    sys.path.insert(0, app_dir)
+
+
+def get_test_client_with_mocks(predictor_mock=None, phishing_mock=None, multi_mock=None):
+    """Create test client with mocked dependencies."""
+    # Import main after setting up path - this triggers internal imports
+    # which use relative imports from the app directory
+    from main import app, predictor, phishing_detector, multi_predictor
+
+    # Set up default mocks
+    if predictor_mock:
+        for key, value in predictor_mock.items():
+            setattr(predictor, key, value) if hasattr(predictor, key) else None
+
+    return TestClient(app)
 
 
 class TestHealthEndpoints:
@@ -17,15 +34,8 @@ class TestHealthEndpoints:
     @pytest.fixture
     def client(self):
         """Create test client with mocked predictors."""
-        with patch('app.main.predictor') as mock_pred, \
-             patch('app.main.multi_predictor') as mock_multi, \
-             patch('app.main.phishing_detector') as mock_phish:
-
-            mock_pred.model_loaded = True
-            mock_multi.models = {'sms': MagicMock()}
-
-            from app.main import app
-            yield TestClient(app)
+        from main import app
+        yield TestClient(app)
 
     def test_health_check(self, client):
         """Test basic health check endpoint."""
@@ -48,7 +58,7 @@ class TestPredictionEndpoints:
     @pytest.fixture
     def client(self):
         """Create test client with mocked predictor."""
-        with patch('app.main.predictor') as mock_pred:
+        with patch('main.predictor') as mock_pred:
             mock_pred.predict.return_value = {
                 'is_spam': False,
                 'confidence': 0.95,
@@ -66,7 +76,7 @@ class TestPredictionEndpoints:
             ]
             mock_pred.model_loaded = True
 
-            from app.main import app
+            from main import app
             yield TestClient(app)
 
     def test_predict_endpoint(self, client):
@@ -116,7 +126,7 @@ class TestPhishingEndpoints:
     @pytest.fixture
     def client(self):
         """Create test client with mocked phishing detector."""
-        with patch('app.main.phishing_detector') as mock_phish:
+        with patch('main.phishing_detector') as mock_phish:
             mock_result = MagicMock()
             mock_result.is_phishing = False
             mock_result.confidence = 0.10
@@ -145,7 +155,7 @@ class TestPhishingEndpoints:
             mock_phish.detect.return_value = mock_result
             mock_phish.model_loaded = True
 
-            from app.main import app
+            from main import app
             yield TestClient(app)
 
     def test_phishing_scan_endpoint(self, client):
@@ -184,15 +194,15 @@ class TestModelVersionEndpoints:
     @pytest.fixture
     def client(self):
         """Create test client."""
-        with patch('app.main.predictor') as mock_pred, \
-             patch('app.main.multi_predictor') as mock_multi:
+        with patch('main.predictor') as mock_pred, \
+             patch('main.multi_predictor') as mock_multi:
 
             mock_pred.model_loaded = True
             mock_multi.get_model_info.return_value = {
                 'models': ['sms', 'voice', 'phishing']
             }
 
-            from app.main import app
+            from main import app
             yield TestClient(app)
 
     def test_model_versions_endpoint(self, client):
@@ -210,11 +220,11 @@ class TestErrorHandling:
     @pytest.fixture
     def client(self):
         """Create test client with error-producing predictor."""
-        with patch('app.main.predictor') as mock_pred:
+        with patch('main.predictor') as mock_pred:
             mock_pred.predict.side_effect = Exception("Model error")
             mock_pred.model_loaded = False
 
-            from app.main import app
+            from main import app
             yield TestClient(app)
 
     def test_prediction_error_handling(self, client):
@@ -241,14 +251,21 @@ class TestInputValidation:
     @pytest.fixture
     def client(self):
         """Create test client."""
-        with patch('app.main.predictor') as mock_pred:
+        with patch('main.predictor') as mock_pred:
             mock_pred.predict.return_value = {
                 'is_spam': False,
-                'confidence': 0.9
+                'confidence': 0.9,
+                'prediction': 'ham',
+                'probability': 0.1,
+                'probabilities': {'ham': 0.9, 'spam': 0.1},
+                'details': {},
+                'is_safe': True,
+                'risk_level': 'NONE',
+                'danger_causes': []
             }
             mock_pred.model_loaded = True
 
-            from app.main import app
+            from main import app
             yield TestClient(app)
 
     def test_very_long_message(self, client):

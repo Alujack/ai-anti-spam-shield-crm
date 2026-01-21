@@ -48,7 +48,7 @@ const createTestApp = () => {
   // Mock auth middleware
   const authMiddleware = (req, res, next) => {
     if (req.headers.authorization) {
-      req.user = { userId: validUser.id };
+      req.user = { id: validUser.id };
     }
     next();
   };
@@ -98,7 +98,7 @@ describe('Phishing Integration Tests', () => {
         .send({ text: phishingText.urgentEmail });
 
       expect(res.status).toBe(200);
-      expect(res.body.success).toBe(true);
+      expect(res.body.status).toBe('success');
       expect(res.body.data.isPhishing).toBe(true);
       expect(res.body.data.threatLevel).toBeDefined();
     });

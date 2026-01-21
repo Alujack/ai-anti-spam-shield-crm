@@ -41,7 +41,7 @@ jest.mock('../../src/config/queue', () => ({
   urlQueue: { add: jest.fn() }
 }));
 
-const { comparePassword, verifyToken } = require('../../src/utils/auth');
+const { comparePassword, verifyToken, generateToken, generateRefreshToken } = require('../../src/utils/auth');
 
 // Create a minimal express app for testing
 const express = require('express');
@@ -57,7 +57,7 @@ const createTestApp = () => {
   app.get('/api/v1/users/profile', (req, res, next) => {
     // Mock auth middleware
     if (req.headers.authorization) {
-      req.user = { userId: validUser.id };
+      req.user = { id: validUser.id };
       next();
     } else {
       res.status(401).json({ error: 'Unauthorized' });
@@ -85,6 +85,9 @@ describe('Auth Integration Tests', () => {
   beforeEach(() => {
     prismaMock.$reset();
     jest.clearAllMocks();
+    // Reset mock implementations
+    generateToken.mockReturnValue('mock-jwt-token');
+    generateRefreshToken.mockReturnValue('mock-refresh-token');
   });
 
   describe('POST /api/v1/users/register', () => {
@@ -104,7 +107,7 @@ describe('Auth Integration Tests', () => {
         .send(newUserData);
 
       expect(res.status).toBe(201);
-      expect(res.body.success).toBe(true);
+      expect(res.body.status).toBe('success');
       expect(res.body.data.token).toBe('mock-jwt-token');
       expect(res.body.data.refreshToken).toBe('mock-refresh-token');
       expect(res.body.data.user.email).toBe(newUserData.email);
@@ -140,7 +143,7 @@ describe('Auth Integration Tests', () => {
         .send(loginCredentials);
 
       expect(res.status).toBe(200);
-      expect(res.body.success).toBe(true);
+      expect(res.body.status).toBe('success');
       expect(res.body.data.token).toBe('mock-jwt-token');
     });
 
@@ -176,7 +179,7 @@ describe('Auth Integration Tests', () => {
         .set('Authorization', 'Bearer mock-jwt-token');
 
       expect(res.status).toBe(200);
-      expect(res.body.success).toBe(true);
+      expect(res.body.status).toBe('success');
       expect(res.body.data.email).toBe(validUser.email);
     });
 
