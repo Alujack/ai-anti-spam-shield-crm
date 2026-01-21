@@ -237,18 +237,30 @@ class PhishingDetector:
             self.vectorizer = None
 
     def _load_transformer_model(self):
-        """Load pre-trained transformer model as fallback"""
-        try:
-            self.transformer_model = pipeline(
-                "text-classification",
-                model="ealvaradob/bert-finetuned-phishing",
-                truncation=True,
-                max_length=512
-            )
-            logger.info("Loaded transformer model for phishing detection")
-        except Exception as e:
-            logger.warning(f"Failed to load transformer model: {e}")
-            self.transformer_model = None
+        """Load pre-trained transformer model for phishing detection"""
+        # Try the latest specialized phishing models (best accuracy first)
+        models_to_try = [
+            "cybersectony/phishing-email-detection-distilbert_v2.4.1",  # Best accuracy for phishing
+            "ealvaradob/bert-finetuned-phishing",  # Fallback
+        ]
+
+        for model_name in models_to_try:
+            try:
+                logger.info(f"Loading transformer model: {model_name}")
+                self.transformer_model = pipeline(
+                    "text-classification",
+                    model=model_name,
+                    truncation=True,
+                    max_length=512
+                )
+                logger.info(f"Successfully loaded {model_name} for phishing detection")
+                return
+            except Exception as e:
+                logger.warning(f"Failed to load {model_name}: {e}")
+                continue
+
+        logger.warning("No transformer models available for phishing detection")
+        self.transformer_model = None
 
     def detect(self, text: str, scan_type: str = 'auto') -> PhishingResult:
         """

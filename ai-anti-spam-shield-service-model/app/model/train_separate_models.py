@@ -648,6 +648,134 @@ class ModelTrainer:
 
         return metrics
 
+    def train_with_cross_validation(self, df: pd.DataFrame, algorithm: str = 'logistic_regression', n_folds: int = 10) -> Dict:
+        """
+        Train model with k-fold cross-validation for better generalization.
+        Recommended for small datasets (like voice scam with only 1,600 samples)
+        to detect and prevent overfitting.
+        """
+        from sklearn.model_selection import StratifiedKFold
+
+        print(f"\n{'='*60}")
+        print(f"Training {self.config.description} with {n_folds}-Fold Cross-Validation")
+        print(f"Algorithm: {algorithm}")
+        print(f"{'='*60}")
+
+        # Preprocess
+        df = self._preprocess_data(df)
+
+        texts = df['processed_text'].tolist()
+        labels = np.array(df['label'].tolist())
+
+        # Initialize cross-validation
+        skf = StratifiedKFold(n_splits=n_folds, shuffle=True, random_state=42)
+
+        # Track metrics across folds
+        fold_metrics = {
+            'accuracy': [], 'precision': [], 'recall': [],
+            'f1': [], 'roc_auc': []
+        }
+
+        print(f"  Running {n_folds}-fold cross-validation...")
+
+        for fold, (train_idx, test_idx) in enumerate(skf.split(texts, labels)):
+            # Split data
+            X_train = [texts[i] for i in train_idx]
+            X_test = [texts[i] for i in test_idx]
+            y_train = labels[train_idx]
+            y_test = labels[test_idx]
+
+            # Extract features
+            X_train_features = self._extract_features(X_train, fit=True)
+            X_test_features = self._extract_features(X_test, fit=False)
+
+            # Create model with regularization for voice model
+            if self.config.name == 'voice':
+                # Use stronger regularization to prevent overfitting
+                if algorithm == 'logistic_regression':
+                    model = LogisticRegression(max_iter=1000, C=0.1, random_state=42, n_jobs=-1)
+                elif algorithm == 'random_forest':
+                    # Limit tree depth and require more samples per leaf
+                    model = RandomForestClassifier(
+                        n_estimators=50,
+                        max_depth=10,
+                        min_samples_leaf=5,
+                        min_samples_split=10,
+                        random_state=42,
+                        n_jobs=-1
+                    )
+                else:
+                    model = self._create_model(algorithm)
+            else:
+                model = self._create_model(algorithm)
+
+            # Train
+            model.fit(X_train_features, y_train)
+
+            # Evaluate
+            y_pred = model.predict(X_test_features)
+            y_prob = model.predict_proba(X_test_features)[:, 1]
+
+            fold_metrics['accuracy'].append(accuracy_score(y_test, y_pred))
+            fold_metrics['precision'].append(precision_score(y_test, y_pred, zero_division=0))
+            fold_metrics['recall'].append(recall_score(y_test, y_pred, zero_division=0))
+            fold_metrics['f1'].append(f1_score(y_test, y_pred, zero_division=0))
+            fold_metrics['roc_auc'].append(roc_auc_score(y_test, y_prob))
+
+            print(f"    Fold {fold+1}: F1={fold_metrics['f1'][-1]:.4f}, Acc={fold_metrics['accuracy'][-1]:.4f}")
+
+        # Calculate mean and std for each metric
+        metrics = {}
+        for metric_name, values in fold_metrics.items():
+            metrics[metric_name] = np.mean(values)
+            metrics[f'{metric_name}_std'] = np.std(values)
+
+        # Check for overfitting (low std = likely overfitting if accuracy is too high)
+        if metrics['accuracy'] > 0.98 and metrics['accuracy_std'] < 0.01:
+            print(f"\n  WARNING: Possible overfitting detected!")
+            print(f"           Accuracy={metrics['accuracy']:.4f} with low variance (std={metrics['accuracy_std']:.4f})")
+            print(f"           Consider using more regularization or data augmentation.")
+
+        # Final training on all data
+        print(f"\n  Training final model on all data...")
+        X_all_features = self._extract_features(texts, fit=True)
+
+        # Use regularized model for voice
+        if self.config.name == 'voice':
+            if algorithm == 'logistic_regression':
+                self.model = LogisticRegression(max_iter=1000, C=0.1, random_state=42, n_jobs=-1)
+            elif algorithm == 'random_forest':
+                self.model = RandomForestClassifier(
+                    n_estimators=50, max_depth=10,
+                    min_samples_leaf=5, min_samples_split=10,
+                    random_state=42, n_jobs=-1
+                )
+            else:
+                self.model = self._create_model(algorithm)
+        else:
+            self.model = self._create_model(algorithm)
+
+        start_time = datetime.now()
+        self.model.fit(X_all_features, labels)
+        train_time = (datetime.now() - start_time).total_seconds()
+
+        metrics['train_time_seconds'] = train_time
+        metrics['train_samples'] = len(texts)
+        metrics['test_samples'] = len(texts) // n_folds
+        metrics['feature_count'] = X_all_features.shape[1]
+        metrics['n_folds'] = n_folds
+        metrics['regularized'] = self.config.name == 'voice'
+
+        # Print results
+        print(f"\n  Cross-Validation Results (Mean ± Std):")
+        print(f"    Accuracy:  {metrics['accuracy']:.4f} ± {metrics['accuracy_std']:.4f}")
+        print(f"    Precision: {metrics['precision']:.4f} ± {metrics['precision_std']:.4f}")
+        print(f"    Recall:    {metrics['recall']:.4f} ± {metrics['recall_std']:.4f}")
+        print(f"    F1 Score:  {metrics['f1']:.4f} ± {metrics['f1_std']:.4f}")
+        print(f"    ROC AUC:   {metrics['roc_auc']:.4f} ± {metrics['roc_auc_std']:.4f}")
+
+        return metrics
+
     def compare_algorithms(self, df: pd.DataFrame) -> pd.DataFrame:
         """Compare multiple algorithms"""
         print(f"\n{'='*60}")
@@ -802,12 +930,18 @@ def train_model(model_type: str, algorithm: str = None, compare: bool = False, o
             # Default algorithms per model type
             defaults = {
                 'sms': 'logistic_regression',
-                'voice': 'random_forest',
+                'voice': 'logistic_regression',  # Changed to logistic_regression with regularization
                 'phishing': 'xgboost' if HAS_XGBOOST else 'random_forest'
             }
             algorithm = defaults[model_type]
 
-        metrics = trainer.train(df, algorithm=algorithm)
+        # Use cross-validation for voice model to prevent overfitting
+        if model_type == 'voice':
+            print("\n  Using 10-fold cross-validation for voice model (small dataset)")
+            print("  Applying regularization to prevent overfitting...")
+            metrics = trainer.train_with_cross_validation(df, algorithm=algorithm, n_folds=10)
+        else:
+            metrics = trainer.train(df, algorithm=algorithm)
         trainer.save(algorithm, metrics)
 
     return trainer

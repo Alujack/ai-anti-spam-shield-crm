@@ -18,6 +18,14 @@ try:
 except ImportError:
     HAS_V2_MODELS = False
 
+# Import V3 pre-trained transformer predictor and ensemble
+try:
+    from model.predictor_v3 import MultiModelPredictorV3, get_predictor as get_predictor_v3
+    from model.ensemble_predictor import EnsemblePredictor, get_ensemble_predictor
+    HAS_V3_MODELS = True
+except ImportError:
+    HAS_V3_MODELS = False
+
 # Import Phase 3: Phishing Intelligence Engine
 try:
     from intel.domain_intel import DomainIntelligence
@@ -106,6 +114,29 @@ if HAS_V2_MODELS:
     except Exception as e:
         print(f"Warning: Could not initialize V2 predictor: {e}")
         print("Train and export V2 models using: python -m model.transformer_trainer && python -m model.onnx_exporter")
+
+# Initialize V3 pre-trained transformer predictor (Phase 6)
+multi_predictor_v3 = None
+ensemble_predictor = None
+v3_available = False
+if HAS_V3_MODELS:
+    try:
+        multi_predictor_v3 = get_predictor_v3(model_dir='model/trained_models_v3')
+        ensemble_predictor = get_ensemble_predictor(model_dir='model/trained_models_v3')
+        v3_available = True
+        print("V3 pre-trained predictor initialized successfully!")
+        print("  - Uses HuggingFace pre-trained models for better generalization")
+        print("  - Ensemble predictor combines transformers + rules + URL analysis")
+    except Exception as e:
+        print(f"Warning: Could not initialize V3 predictor: {e}")
+        print("V3 models will be downloaded automatically on first use")
+        # Try to initialize with fallback to HuggingFace models
+        try:
+            multi_predictor_v3 = MultiModelPredictorV3(model_dir='model/trained_models_v3')
+            v3_available = True
+            print("V3 predictor initialized with HuggingFace fallback")
+        except Exception as e2:
+            print(f"V3 predictor unavailable: {e2}")
 
 # Initialize Phase 3: Phishing Intelligence Engine
 domain_intel = None
@@ -1745,6 +1776,275 @@ async def continuous_learning_health():
             "retraining_scheduler": HAS_CONTINUOUS_LEARNING,
         },
         "v2_models_available": v2_available,
+        "timestamp": datetime.utcnow().isoformat()
+    }
+
+
+# ============================================
+# PHASE 6: V3 PRE-TRAINED MODELS
+# ============================================
+
+class V3PredictionRequest(BaseModel):
+    text: str = Field(..., min_length=1, max_length=10000,
+                      description="Text to analyze for spam/phishing")
+    model_type: Optional[str] = Field(
+        default="auto",
+        description="Model type: 'sms', 'phishing', 'voice', or 'auto'"
+    )
+
+
+class V3PredictionResponse(BaseModel):
+    is_spam: bool
+    confidence: float
+    prediction: str
+    risk_level: str
+    category: Optional[str]
+    explanation: str
+    indicators: List[dict]
+    model_version: str
+    model_source: str
+    timestamp: str
+
+
+class V3EnsembleResponse(BaseModel):
+    is_threat: bool
+    confidence: float
+    threat_level: str
+    prediction: str
+    transformer_score: float
+    rule_score: float
+    url_score: float
+    indicators: List[dict]
+    urls_analyzed: List[dict]
+    explanation: str
+    recommendation: str
+    model_version: str
+    ensemble_weights: dict
+    timestamp: str
+
+
+@app.post("/predict-v3", response_model=V3PredictionResponse, tags=["V3 Models"])
+async def predict_v3(request: V3PredictionRequest):
+    """
+    V3 Prediction using pre-trained HuggingFace models
+
+    Uses state-of-the-art pre-trained transformers for maximum accuracy:
+    - SMS: mrm8488/bert-tiny-finetuned-sms-spam-detection
+    - Phishing: cybersectony/phishing-email-detection-distilbert_v2.4.1
+
+    Features:
+    - Better generalization to real-world data
+    - Automatic model download from HuggingFace
+    - Fine-tuned models used if available
+    """
+    if not v3_available:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="V3 models not available. Ensure transformers library is installed."
+        )
+
+    try:
+        model_type = request.model_type.lower()
+
+        if model_type == "auto":
+            result = multi_predictor_v3.predict_auto(request.text)
+        elif model_type == "sms":
+            result = multi_predictor_v3.predict_sms(request.text)
+        elif model_type == "phishing":
+            result = multi_predictor_v3.predict_phishing(request.text)
+        elif model_type == "voice":
+            result = multi_predictor_v3.predict_voice(request.text)
+        else:
+            result = multi_predictor_v3.predict_auto(request.text)
+
+        return {
+            **result,
+            "timestamp": datetime.utcnow().isoformat()
+        }
+
+    except Exception as e:
+        logger.error(f"V3 prediction error: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=str(e)
+        )
+
+
+@app.post("/predict-v3/elder-mode", tags=["V3 Models"])
+async def predict_v3_elder_mode(request: V3PredictionRequest):
+    """
+    V3 Prediction with elder-friendly warnings
+
+    Same as /predict-v3 but includes additional warnings designed
+    for users who may be more vulnerable to scams.
+    """
+    if not v3_available:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="V3 models not available."
+        )
+
+    try:
+        model_type = request.model_type.lower() if request.model_type else "sms"
+        result = multi_predictor_v3.predict_with_elder_mode(request.text, model_type)
+
+        return {
+            **result,
+            "timestamp": datetime.utcnow().isoformat()
+        }
+
+    except Exception as e:
+        logger.error(f"V3 elder mode prediction error: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=str(e)
+        )
+
+
+@app.post("/predict-ensemble", response_model=V3EnsembleResponse, tags=["V3 Models"])
+async def predict_ensemble(request: V3PredictionRequest):
+    """
+    Ensemble Prediction combining multiple detection methods
+
+    Combines:
+    - Pre-trained transformer models (60% weight)
+    - Rule-based pattern matching (25% weight)
+    - URL/feature analysis (15% weight)
+
+    This provides the most accurate and explainable predictions.
+    """
+    if not v3_available or ensemble_predictor is None:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Ensemble predictor not available."
+        )
+
+    try:
+        model_type = request.model_type.lower() if request.model_type else "auto"
+        result = ensemble_predictor.predict(request.text, model_type)
+
+        return {
+            **result.to_dict(),
+            "timestamp": datetime.utcnow().isoformat()
+        }
+
+    except Exception as e:
+        logger.error(f"Ensemble prediction error: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=str(e)
+        )
+
+
+@app.post("/batch-predict-v3", tags=["V3 Models"])
+async def batch_predict_v3(request: BatchPredictionRequest):
+    """
+    Batch V3 prediction for multiple texts
+
+    Efficiently processes multiple texts using the V3 pre-trained models.
+    """
+    if not v3_available:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="V3 models not available."
+        )
+
+    try:
+        results = []
+        for text in request.messages:
+            result = multi_predictor_v3.predict_auto(text)
+            results.append({
+                **result,
+                "text_preview": text[:50] + "..." if len(text) > 50 else text
+            })
+
+        return {
+            "predictions": results,
+            "total": len(results),
+            "spam_count": sum(1 for r in results if r.get("is_spam", False)),
+            "model_version": "v3-pretrained",
+            "timestamp": datetime.utcnow().isoformat()
+        }
+
+    except Exception as e:
+        logger.error(f"Batch V3 prediction error: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=str(e)
+        )
+
+
+@app.get("/v3-health", tags=["V3 Models"])
+async def v3_health():
+    """Check health status of V3 pre-trained models"""
+    return {
+        "status": "healthy" if v3_available else "unavailable",
+        "v3_available": v3_available,
+        "ensemble_available": ensemble_predictor is not None,
+        "models_loaded": multi_predictor_v3.get_loaded_models() if v3_available and multi_predictor_v3 else [],
+        "available_model_types": ["sms", "phishing", "voice"],
+        "features": [
+            "Pre-trained HuggingFace transformers",
+            "Fine-tuned models (if available)",
+            "Ensemble prediction",
+            "Elder-friendly mode"
+        ],
+        "timestamp": datetime.utcnow().isoformat()
+    }
+
+
+@app.get("/model/versions", tags=["Model Info"])
+async def get_all_model_versions():
+    """Get all available model versions and their status"""
+    versions = {
+        "v1": {
+            "description": "TF-IDF + Traditional ML",
+            "models": {
+                "sms": "Logistic Regression",
+                "phishing": "Random Forest",
+                "voice": "Logistic Regression"
+            },
+            "status": "available" if multi_predictor and len(multi_predictor.models) > 0 else "unavailable",
+            "loaded_models": list(multi_predictor.models.keys()) if multi_predictor else []
+        },
+        "v2": {
+            "description": "ONNX-optimized Transformers",
+            "models": {
+                "sms": "DistilBERT (ONNX)",
+                "phishing": "DistilBERT (ONNX)"
+            },
+            "status": "available" if v2_available else "unavailable",
+            "loaded_models": multi_predictor_v2.get_available_models() if v2_available else []
+        },
+        "v3": {
+            "description": "Pre-trained HuggingFace Transformers",
+            "models": {
+                "sms": "bert-tiny-finetuned-sms-spam-detection",
+                "phishing": "phishing-email-detection-distilbert_v2.4.1",
+                "voice": "Transfer from SMS model"
+            },
+            "status": "available" if v3_available else "unavailable",
+            "loaded_models": multi_predictor_v3.get_loaded_models() if v3_available and multi_predictor_v3 else [],
+            "features": ["Auto-download from HuggingFace", "Ensemble predictions", "Elder mode"]
+        }
+    }
+
+    # Determine recommended version
+    if v3_available:
+        recommended = "v3"
+    elif v2_available:
+        recommended = "v2"
+    else:
+        recommended = "v1"
+
+    return {
+        "versions": versions,
+        "recommended": recommended,
+        "recommendation_reason": {
+            "v3": "Best accuracy and generalization with pre-trained transformers",
+            "v2": "Fast inference with ONNX optimization",
+            "v1": "Lightweight, works without GPU"
+        }.get(recommended, ""),
         "timestamp": datetime.utcnow().isoformat()
     }
 
