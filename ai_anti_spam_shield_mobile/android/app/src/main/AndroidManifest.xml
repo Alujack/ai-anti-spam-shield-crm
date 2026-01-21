@@ -4,7 +4,7 @@
     <uses-permission android:name="android.permission.INTERNET"/>
 
     <application
-        android:label="ai_anti_spam_shield_mobile"
+        android:label="AI Shield"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
         <activity

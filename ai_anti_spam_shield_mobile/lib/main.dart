@@ -32,7 +32,7 @@ class MyApp extends ConsumerWidget {
     final settingsState = ref.watch(appSettingsProvider);
 
     return MaterialApp(
-      title: 'AI Anti-Scam Shield',
+      title: 'AI Shield',
       debugShowCheckedModeBanner: false,
       themeMode: settingsState.themeMode,
       theme: _buildLightTheme(),
@@ -246,7 +246,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
                 return Opacity(
                   opacity: value,
                   child: const Text(
-                    'AI Anti-Scam Shield',
+                    'AI Shield',
                     style: TextStyle(
                       fontSize: 28,
                       fontWeight: FontWeight.bold,
