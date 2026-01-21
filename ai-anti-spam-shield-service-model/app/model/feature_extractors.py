@@ -239,56 +239,106 @@ class TextFeatureExtractor:
     - Style (capitalization, punctuation)
     """
 
-    # Urgency patterns
+    # Urgency patterns (expanded)
     URGENCY_PATTERNS = [
-        r'\b(urgent|immediately|asap|now|today|expires?|limited time)\b',
-        r'\b(act now|hurry|don\'t wait|final notice|last chance)\b',
-        r'\b(within \d+ (hours?|days?|minutes?))\b',
-        r'\b(deadline|expire|suspend|terminate)\b',
+        r'\b(urgent|immediately|asap|now|today|expires?|limited time|expiring)\b',
+        r'\b(act now|hurry|don\'t wait|final notice|last chance|time sensitive)\b',
+        r'\b(within \d+ (hours?|days?|minutes?|seconds?))\b',
+        r'\b(deadline|expire|suspend|terminate|cancel)\b',
+        r'\b(immediate (action|attention|response) (required|needed))\b',
+        r'\b(before it\'?s too late)\b',
+        r'\b(only \d+ (left|remaining|available))\b',
     ]
 
-    # Threat patterns
+    # Threat patterns (expanded)
     THREAT_PATTERNS = [
-        r'\b(account (suspended|locked|compromised|restricted|disabled))\b',
-        r'\b(unauthorized (access|activity|transaction))\b',
-        r'\b(security (alert|warning|breach|issue))\b',
-        r'\b(suspicious (activity|login|attempt))\b',
-        r'\b(will be (closed|terminated|deleted|suspended))\b',
+        r'\b(account (suspended|locked|compromised|restricted|disabled|terminated))\b',
+        r'\b(unauthorized (access|activity|transaction|login|charge))\b',
+        r'\b(security (alert|warning|breach|issue|concern|threat))\b',
+        r'\b(suspicious (activity|login|attempt|transaction|behavior))\b',
+        r'\b(will be (closed|terminated|deleted|suspended|deactivated))\b',
+        r'\b(unusual (activity|sign.?in|access|behavior))\b',
+        r'\b(your (account|data|information) (is|has been|was|may be))\b',
+        r'\b(identity (theft|stolen|compromised))\b',
+        r'\b(legal (action|consequences))\b',
+        r'\b(law enforcement|fbi|police)\b',
     ]
 
-    # Credential request patterns
+    # Credential request patterns (expanded)
     CREDENTIAL_PATTERNS = [
-        r'\b(verify (your )?(account|identity|information|password))\b',
-        r'\b(confirm (your )?(account|identity|details|password))\b',
-        r'\b(update (your )?(account|information|details|password))\b',
-        r'\b(enter (your )?(password|pin|ssn|credit card))\b',
-        r'\b(provide (your )?(password|credentials|information))\b',
+        r'\b(verify (your )?(account|identity|information|password|email|phone))\b',
+        r'\b(confirm (your )?(account|identity|details|password|login))\b',
+        r'\b(update (your )?(account|information|details|password|billing|payment))\b',
+        r'\b(enter (your )?(password|pin|ssn|credit card|cvv|security code))\b',
+        r'\b(provide (your )?(password|credentials|information|details))\b',
+        r'\b(reset (your )?(password|credentials|account))\b',
+        r'\b(login (to )?(verify|confirm|secure|protect))\b',
+        r'\b(re.?enter (your )?(password|credentials))\b',
+        r'\b(validate (your )?(account|identity|card))\b',
     ]
 
-    # Financial patterns
+    # Financial patterns (expanded)
     FINANCIAL_PATTERNS = [
-        r'\b(bank|credit card|debit card|payment|transaction)\b',
-        r'\b(wire transfer|bitcoin|cryptocurrency|investment)\b',
-        r'\b(refund|reimbursement|compensation|prize|winner)\b',
-        r'[$£€¥]\s?\d+[,\d]*',
+        r'\b(bank|credit card|debit card|payment|transaction|billing)\b',
+        r'\b(wire transfer|bitcoin|cryptocurrency|crypto|eth|btc)\b',
+        r'\b(refund|reimbursement|compensation|prize|winner|rebate)\b',
+        r'[$£€¥₹]\s?\d+[,\d]*(\.\d{2})?',
         r'\b\d+\s?(dollars?|pounds?|euros?|usd|gbp|eur)\b',
+        r'\b(inheritance|beneficiary|unclaimed funds)\b',
+        r'\b(investment opportunity|guaranteed returns)\b',
+        r'\b(tax (refund|return|rebate))\b',
+        r'\b(overdue (payment|invoice|balance))\b',
+        r'\b(free (gift|money|iphone|samsung))\b',
     ]
 
-    # Action request patterns
+    # Action request patterns (expanded)
     ACTION_PATTERNS = [
-        r'\b(click (here|the link|below|this))\b',
+        r'\b(click (here|the link|below|this|the button))\b',
         r'\b(follow (this|the) link)\b',
-        r'\b(visit (this|our) (website|page|link))\b',
-        r'\b(download (the )?(attachment|file|document))\b',
-        r'\b(open (the )?(attachment|file|document))\b',
+        r'\b(tap (here|the link|below|to))\b',
+        r'\b(visit (this|our|the) (website|page|link|portal))\b',
+        r'\b(go to|navigate to|access)\b',
+        r'\b(download (the )?(attachment|file|document|form))\b',
+        r'\b(open (the )?(attachment|file|document|link))\b',
+        r'\b(scan (this|the) (qr|code|barcode))\b',
+        r'\b(reply (with|to|immediately))\b',
+        r'\b(call (this|the|us|now|immediately))\b',
     ]
 
-    # Impersonation patterns
+    # Impersonation patterns (expanded)
     IMPERSONATION_PATTERNS = [
-        r'\b(dear (customer|user|member|client|valued))\b',
-        r'\b(from (the )?(support|team|department|administration))\b',
-        r'\b(official (notice|notification|communication))\b',
-        r'\b(customer (service|support|care))\b',
+        r'\b(dear (valued )?(customer|user|member|client|account holder))\b',
+        r'\b(from (the )?(support|team|department|administration|security))\b',
+        r'\b(official (notice|notification|communication|update))\b',
+        r'\b(customer (service|support|care|team))\b',
+        r'\b(account (team|department|services))\b',
+        r'\b(this (is|message is) (automated|auto.?generated))\b',
+        r'\b(do not (reply|respond|ignore))\b',
+        r'\b(help desk|helpdesk|it department)\b',
+    ]
+
+    # Social engineering patterns (NEW)
+    SOCIAL_ENGINEERING_PATTERNS = [
+        r'\b(we (have|noticed|detected|observed|found))\b',
+        r'\b(your (recent )?(order|purchase|transaction|shipment))\b',
+        r'\b(as a (valued|loyal|special) (customer|member))\b',
+        r'\b(for (your|account) (security|safety|protection))\b',
+        r'\b(to (avoid|prevent) (suspension|termination|closure))\b',
+        r'\b(routine (maintenance|security|verification|check))\b',
+        r'\b(mandatory (update|verification|action))\b',
+        r'\b(failed (delivery|payment|transaction|verification))\b',
+        r'\b(undelivered (package|parcel|mail|item))\b',
+    ]
+
+    # Crypto/NFT scam patterns (NEW)
+    CRYPTO_PATTERNS = [
+        r'\b(airdrop|free (tokens?|coins?|nft|crypto))\b',
+        r'\b(connect (your )?(wallet|metamask))\b',
+        r'\b(claim (your )?(reward|tokens?|coins?|nft|prize))\b',
+        r'\b(wallet (compromised|at risk|verification))\b',
+        r'\b(seed phrase|private key|recovery phrase)\b',
+        r'\b(mint (now|free|limited))\b',
+        r'\b(whitelist|presale|early access)\b',
     ]
 
     def __init__(self):
@@ -312,6 +362,8 @@ class TextFeatureExtractor:
         self.financial_patterns = [re.compile(p, re.IGNORECASE) for p in self.FINANCIAL_PATTERNS]
         self.action_patterns = [re.compile(p, re.IGNORECASE) for p in self.ACTION_PATTERNS]
         self.impersonation_patterns = [re.compile(p, re.IGNORECASE) for p in self.IMPERSONATION_PATTERNS]
+        self.social_engineering_patterns = [re.compile(p, re.IGNORECASE) for p in self.SOCIAL_ENGINEERING_PATTERNS]
+        self.crypto_patterns = [re.compile(p, re.IGNORECASE) for p in self.CRYPTO_PATTERNS]
 
     def extract(self, text: str) -> Dict[str, float]:
         """
@@ -356,6 +408,8 @@ class TextFeatureExtractor:
         features['financial_score'] = self._count_pattern_matches(text, self.financial_patterns)
         features['action_score'] = self._count_pattern_matches(text, self.action_patterns)
         features['impersonation_score'] = self._count_pattern_matches(text, self.impersonation_patterns)
+        features['social_engineering_score'] = self._count_pattern_matches(text, self.social_engineering_patterns)
+        features['crypto_score'] = self._count_pattern_matches(text, self.crypto_patterns)
 
         # Style features
         features['uppercase_ratio'] = sum(1 for c in text if c.isupper()) / max(len(text), 1)
@@ -379,11 +433,13 @@ class TextFeatureExtractor:
 
         # Combined score (weighted sum of pattern scores)
         features['phishing_indicator_score'] = (
-            features['urgency_score'] * 0.2 +
-            features['threat_score'] * 0.25 +
+            features['urgency_score'] * 0.15 +
+            features['threat_score'] * 0.20 +
             features['credential_score'] * 0.25 +
-            features['action_score'] * 0.15 +
-            features['impersonation_score'] * 0.15
+            features['action_score'] * 0.10 +
+            features['impersonation_score'] * 0.10 +
+            features['social_engineering_score'] * 0.10 +
+            features['crypto_score'] * 0.10
         )
 
         return features
@@ -396,6 +452,7 @@ class TextFeatureExtractor:
             'has_url': 0, 'has_email': 0, 'has_phone': 0,
             'urgency_score': 0, 'threat_score': 0, 'credential_score': 0,
             'financial_score': 0, 'action_score': 0, 'impersonation_score': 0,
+            'social_engineering_score': 0, 'crypto_score': 0,
             'uppercase_ratio': 0, 'exclamation_count': 0, 'question_count': 0,
             'punctuation_ratio': 0, 'avg_word_length': 0,
             'short_word_ratio': 0, 'long_word_ratio': 0,

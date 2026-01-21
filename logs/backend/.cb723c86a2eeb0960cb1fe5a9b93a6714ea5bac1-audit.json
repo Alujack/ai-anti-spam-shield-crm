@@ -44,6 +44,11 @@
             "date": 1768889631783,
             "name": "/opt/school-project/ai-anti-spam-shield/logs/backend/combined-2026-01-20.log",
             "hash": "b11314f04d7be621ba4477a36fa97353c08f86ab525c1be4be187c0c084940a2"
+        },
+        {
+            "date": 1768968089328,
+            "name": "/opt/school-project/ai-anti-spam-shield/logs/backend/combined-2026-01-21.log",
+            "hash": "614879687da5806fef7694e9080d428fae6119c1e287d12909c7b4e04c53f7e4"
         }
     ],
     "hashType": "sha256"
