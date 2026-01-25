@@ -91,6 +91,7 @@ services:
       dockerfile: Dockerfile
     container_name: ai-shield-worker
     user: root
+    entrypoint: []
     command: ["node", "src/services/queue/workers/unified.worker.js"]
     environment:
       NODE_ENV: production

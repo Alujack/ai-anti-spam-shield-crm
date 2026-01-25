@@ -39,6 +39,10 @@ COPY --from=deps /app/prisma ./prisma
 # Copy application code
 COPY src ./src
 COPY package*.json ./
+COPY docker-entrypoint.sh ./
+
+# Make entrypoint executable
+RUN chmod +x docker-entrypoint.sh
 
 # Set ownership
 RUN chown -R aishield:nodejs /app
@@ -53,5 +57,6 @@ EXPOSE 3000
 HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
     CMD curl -f http://localhost:3000/health || exit 1
 
-# Start application
+# Entrypoint runs migrations then starts app
+ENTRYPOINT ["./docker-entrypoint.sh"]
 CMD ["node", "src/app.js"]
