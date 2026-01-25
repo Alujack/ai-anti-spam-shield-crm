@@ -14,7 +14,7 @@ nltk==3.8.1
 
 # Hugging Face Datasets
 datasets==2.18.0
-huggingface-hub==0.20.3
+huggingface-hub>=0.23.0
 
 # Voice/Speech Recognition
 SpeechRecognition==3.10.0
