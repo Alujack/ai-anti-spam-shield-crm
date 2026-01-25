@@ -112,6 +112,7 @@ services:
 
   # ===========================================
   # ML SERVICE (FastAPI)
+  # Models are trained during Docker build
   # ===========================================
   ml-service:
     build:
@@ -121,21 +122,25 @@ services:
     environment:
       MODEL_DIR: /app/model
       PYTHONUNBUFFERED: 1
+      # HuggingFace cache for transformer models
+      HF_HOME: /app/.cache/huggingface
+      TRANSFORMERS_CACHE: /app/.cache/huggingface
     volumes:
-      - ml-models:/app/model
+      # Persist HuggingFace model cache (optional, speeds up restarts)
+      - ml-cache:/app/.cache
     healthcheck:
-      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
       interval: 30s
       timeout: 10s
-      retries: 3
-      start_period: 120s
+      retries: 5
+      start_period: 60s
     networks:
       - ai-shield-network
     restart: unless-stopped
     deploy:
       resources:
         limits:
-          memory: 1G
+          memory: 1.5G
           cpus: '1'
 
   # ===========================================
@@ -195,5 +200,5 @@ networks:
 volumes:
   postgres-data:
   redis-data:
-  ml-models:
+  ml-cache:
   backend-logs:

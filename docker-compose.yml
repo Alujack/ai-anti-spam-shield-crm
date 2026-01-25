@@ -126,6 +126,7 @@ services:
 
   # ===========================================
   # ML SERVICE (FastAPI)
+  # Models are trained during Docker build
   # ===========================================
   ml-service:
     build:
@@ -135,15 +136,17 @@ services:
     environment:
       MODEL_DIR: /app/model
       PYTHONUNBUFFERED: 1
+      HF_HOME: /app/.cache/huggingface
+      TRANSFORMERS_CACHE: /app/.cache/huggingface
     volumes:
-      - ml-models:/app/model
+      - ml-cache:/app/.cache
     ports:
       - "8000:8000"      # Direct access (for debugging)
     healthcheck:
-      test: ["CMD", "python", "-c", "import requests; requests.get('http://localhost:8000/health')"]
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
       interval: 30s
       timeout: 10s
-      retries: 3
+      retries: 5
       start_period: 60s
     networks:
       - ai-shield-network
@@ -249,7 +252,7 @@ networks:
 volumes:
   postgres-data:
   redis-data:
-  ml-models:
+  ml-cache:
   backend-logs:
   prometheus-data:
   grafana-data:
