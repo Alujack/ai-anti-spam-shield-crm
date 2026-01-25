@@ -18,6 +18,8 @@ Thumbs.db
 
 # Python
 __pycache__/
+.coverage
+htmlcov/
 *.py[cod]
 *$py.class
 *.so
