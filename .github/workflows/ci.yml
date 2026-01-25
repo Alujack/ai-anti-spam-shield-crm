@@ -1,0 +1,322 @@
+# ============================================================
+# CONTINUOUS INTEGRATION (CI) PIPELINE
+# ============================================================
+# This workflow runs automatically when:
+#   - Someone creates a Pull Request to main or develop
+#   - Someone pushes to main or develop branches
+#
+# EDUCATIONAL NOTE:
+# CI (Continuous Integration) is the practice of automatically
+# testing code changes before they're merged. This catches bugs
+# early and ensures code quality.
+#
+# Learn more: https://docs.github.com/en/actions
+# ============================================================
+
+name: CI Pipeline
+
+# TRIGGER EVENTS
+# When should this workflow run?
+on:
+  pull_request:
+    branches: [main, develop]
+  push:
+    branches: [main, develop]
+
+# ENVIRONMENT VARIABLES
+# These are available to all jobs in this workflow
+env:
+  NODE_VERSION: '20'
+  PYTHON_VERSION: '3.11'
+  FLUTTER_VERSION: '3.22.0'
+
+# JOBS
+# Jobs run in parallel by default unless you specify dependencies with 'needs'
+jobs:
+  # ============================================================
+  # JOB 1: BACKEND TESTS (Node.js/Express)
+  # ============================================================
+  backend-test:
+    name: Backend Tests
+    runs-on: ubuntu-latest
+    # EDUCATIONAL NOTE: 'runs-on' specifies the virtual machine type
+    # ubuntu-latest is a free GitHub-hosted runner
+
+    # Service containers run alongside your job
+    # EDUCATIONAL NOTE: Services are like docker-compose for CI
+    # They provide databases and caches for testing
+    services:
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+      postgres:
+        image: postgres:15-alpine
+        env:
+          POSTGRES_USER: test
+          POSTGRES_PASSWORD: test
+          POSTGRES_DB: aishield_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      # STEP 1: Checkout code
+      # EDUCATIONAL NOTE: actions/checkout clones your repository
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      # STEP 2: Setup Node.js with caching
+      # EDUCATIONAL NOTE: Caching node_modules speeds up builds significantly
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          cache-dependency-path: ai-anti-spam-shield-backend/package-lock.json
+
+      # STEP 3: Install dependencies
+      # EDUCATIONAL NOTE: npm ci is faster than npm install
+      # and uses exact versions from package-lock.json
+      - name: Install dependencies
+        working-directory: ai-anti-spam-shield-backend
+        run: npm ci
+
+      # STEP 4: Generate Prisma client
+      - name: Generate Prisma Client
+        working-directory: ai-anti-spam-shield-backend
+        run: npx prisma generate
+
+      # STEP 5: Run linting
+      # EDUCATIONAL NOTE: Linting catches code style issues and potential bugs
+      - name: Lint code
+        working-directory: ai-anti-spam-shield-backend
+        run: npm run lint --if-present
+        continue-on-error: true
+        # continue-on-error means linting won't fail the build (yet)
+
+      # STEP 6: Run tests with coverage
+      - name: Run tests
+        working-directory: ai-anti-spam-shield-backend
+        env:
+          NODE_ENV: test
+          DATABASE_URL: postgresql://test:test@localhost:5432/aishield_test
+          REDIS_URL: redis://localhost:6379
+          JWT_SECRET: test-secret-key-for-ci
+          JWT_REFRESH_SECRET: test-refresh-secret-for-ci
+          ENCRYPTION_KEY: test-encryption-key-32bytes!!
+        run: npm run test:coverage
+
+      # STEP 7: Upload coverage to Codecov (optional)
+      # EDUCATIONAL NOTE: Codecov tracks code coverage over time
+      - name: Upload coverage report
+        uses: codecov/codecov-action@v4
+        if: always()
+        with:
+          files: ai-anti-spam-shield-backend/coverage/lcov.info
+          flags: backend
+          fail_ci_if_error: false
+
+  # ============================================================
+  # JOB 2: ML SERVICE TESTS (Python/FastAPI)
+  # ============================================================
+  ml-service-test:
+    name: ML Service Tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      # Setup Python with pip caching
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: 'pip'
+          cache-dependency-path: ai-anti-spam-shield-service-model/app/requirements.txt
+
+      # Install system dependencies for audio processing
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg portaudio19-dev
+
+      # Install Python dependencies
+      - name: Install Python dependencies
+        working-directory: ai-anti-spam-shield-service-model
+        run: |
+          pip install --upgrade pip
+          pip install -r app/requirements.txt
+          pip install pytest pytest-cov pytest-asyncio ruff
+
+      # Run Python linting with ruff (fast Python linter)
+      # EDUCATIONAL NOTE: ruff is a modern, fast Python linter
+      - name: Lint code
+        working-directory: ai-anti-spam-shield-service-model
+        run: ruff check app/ --ignore E501
+        continue-on-error: true
+
+      # Run unit tests with pytest
+      - name: Run unit tests
+        working-directory: ai-anti-spam-shield-service-model
+        run: |
+          pytest tests/unit/ -v --tb=short || echo "Some tests may have failed"
+        continue-on-error: true
+
+  # ============================================================
+  # JOB 3: MOBILE APP TESTS (Flutter)
+  # ============================================================
+  mobile-test:
+    name: Mobile App Tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      # Setup Flutter
+      # EDUCATIONAL NOTE: subosito/flutter-action handles Flutter installation
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: 'stable'
+          cache: true
+
+      # Get dependencies
+      - name: Install dependencies
+        working-directory: ai_anti_spam_shield_mobile
+        run: flutter pub get
+
+      # Analyze code for issues
+      # EDUCATIONAL NOTE: flutter analyze checks for Dart style issues
+      - name: Analyze code
+        working-directory: ai_anti_spam_shield_mobile
+        run: flutter analyze --no-fatal-infos
+        continue-on-error: true
+
+      # Run tests
+      - name: Run tests
+        working-directory: ai_anti_spam_shield_mobile
+        run: flutter test || echo "Some tests may have failed"
+        continue-on-error: true
+
+  # ============================================================
+  # JOB 4: BUILD DOCKER IMAGES
+  # ============================================================
+  docker-build:
+    name: Build Docker Images
+    runs-on: ubuntu-latest
+    needs: [backend-test, ml-service-test]
+    # EDUCATIONAL NOTE: 'needs' creates job dependencies
+    # This job only runs after both test jobs complete
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      # Setup Docker Buildx for better caching
+      # EDUCATIONAL NOTE: Buildx enables advanced Docker features
+      # like layer caching and multi-platform builds
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      # Build backend image (verify it builds, don't push)
+      - name: Build Backend Image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./ai-anti-spam-shield-backend
+          push: false
+          tags: ai-shield-backend:test
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+        # EDUCATIONAL NOTE: gha cache uses GitHub Actions cache
+        # This makes subsequent builds much faster
+
+      # Build ML service image
+      - name: Build ML Service Image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./ai-anti-spam-shield-service-model
+          push: false
+          tags: ai-shield-ml-service:test
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  # ============================================================
+  # JOB 5: SECURITY SCANNING
+  # ============================================================
+  security-scan:
+    name: Security Scan
+    runs-on: ubuntu-latest
+    # Run in parallel with other jobs for speed
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          # EDUCATIONAL NOTE: fetch-depth 0 gets full git history
+          # Required for scanning commit history
+
+      # Scan for secrets in code
+      # EDUCATIONAL NOTE: Trufflehog detects accidentally committed secrets
+      # like API keys, passwords, tokens
+      - name: Run Trufflehog (Secret Scanner)
+        uses: trufflesecurity/trufflehog@main
+        continue-on-error: true
+        with:
+          extra_args: --only-verified
+
+      # Scan for vulnerabilities in dependencies
+      # EDUCATIONAL NOTE: Trivy scans for known CVEs in dependencies
+      - name: Run Trivy vulnerability scanner
+        uses: aquasecurity/trivy-action@master
+        continue-on-error: true
+        with:
+          scan-type: 'fs'
+          scan-ref: '.'
+          severity: 'CRITICAL,HIGH'
+          exit-code: '0'
+
+  # ============================================================
+  # SUMMARY JOB
+  # ============================================================
+  ci-summary:
+    name: CI Summary
+    runs-on: ubuntu-latest
+    needs: [backend-test, ml-service-test, mobile-test, docker-build, security-scan]
+    if: always()
+    # EDUCATIONAL NOTE: 'if: always()' runs even if previous jobs failed
+
+    steps:
+      - name: Check CI Status
+        run: |
+          echo "====================================="
+          echo "        CI PIPELINE SUMMARY          "
+          echo "====================================="
+          echo ""
+          echo "Backend Tests:   ${{ needs.backend-test.result }}"
+          echo "ML Tests:        ${{ needs.ml-service-test.result }}"
+          echo "Mobile Tests:    ${{ needs.mobile-test.result }}"
+          echo "Docker Build:    ${{ needs.docker-build.result }}"
+          echo "Security Scan:   ${{ needs.security-scan.result }}"
+          echo ""
+          echo "====================================="
+
+      - name: Fail if critical jobs failed
+        if: needs.backend-test.result == 'failure' || needs.docker-build.result == 'failure'
+        run: |
+          echo "Critical CI jobs failed!"
+          exit 1

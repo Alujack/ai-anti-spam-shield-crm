@@ -1,0 +1,360 @@
+# ============================================================
+# CONTINUOUS DEPLOYMENT (CD) PIPELINE
+# ============================================================
+# This workflow runs when:
+#   - Code is pushed/merged to main branch
+#   - Manually triggered via GitHub UI (workflow_dispatch)
+#
+# EDUCATIONAL NOTE:
+# CD (Continuous Deployment) automatically deploys tested code
+# to production. This reduces manual work and human error.
+#
+# IMPORTANT: Configure these secrets in GitHub:
+#   - DROPLET_IP: Your DigitalOcean server IP
+#   - DROPLET_USER: SSH username (usually 'root')
+#   - DROPLET_SSH_KEY: Private SSH key for authentication
+#   - DOMAIN: Your domain name (e.g., aiscamshield.codes)
+# ============================================================
+
+name: CD Pipeline
+
+on:
+  push:
+    branches: [main]
+  # Allow manual trigger from GitHub UI
+  workflow_dispatch:
+    inputs:
+      skip_tests:
+        description: 'Skip CI tests (use with caution!)'
+        required: false
+        default: 'false'
+        type: boolean
+
+# Prevent concurrent deployments
+# EDUCATIONAL NOTE: This prevents two deployments running simultaneously
+# which could cause conflicts and downtime
+concurrency:
+  group: deployment-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  REGISTRY: ghcr.io
+  # EDUCATIONAL NOTE: ghcr.io is GitHub Container Registry
+  # Free for public repos, included with GitHub Pro
+  IMAGE_NAME_BACKEND: ${{ github.repository }}/backend
+  IMAGE_NAME_ML: ${{ github.repository }}/ml-service
+
+jobs:
+  # ============================================================
+  # JOB 1: RUN CI TESTS FIRST
+  # ============================================================
+  ci-check:
+    name: Run CI Tests
+    if: ${{ github.event.inputs.skip_tests != 'true' }}
+    uses: ./.github/workflows/ci.yml
+    # EDUCATIONAL NOTE: 'uses' can call another workflow
+    # This reuses our CI workflow to ensure tests pass
+
+  # ============================================================
+  # JOB 2: BUILD AND PUSH DOCKER IMAGES
+  # ============================================================
+  build-and-push:
+    name: Build & Push Images
+    runs-on: ubuntu-latest
+    needs: [ci-check]
+    if: always() && (needs.ci-check.result == 'success' || needs.ci-check.result == 'skipped')
+
+    # Permissions needed to push to GitHub Container Registry
+    permissions:
+      contents: read
+      packages: write
+      # EDUCATIONAL NOTE: permissions control what the job can access
+      # 'packages: write' allows pushing to ghcr.io
+
+    outputs:
+      backend_tag: ${{ steps.meta-backend.outputs.tags }}
+      ml_tag: ${{ steps.meta-ml.outputs.tags }}
+      short_sha: ${{ steps.vars.outputs.short_sha }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set variables
+        id: vars
+        run: echo "short_sha=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
+
+      # Login to GitHub Container Registry
+      # EDUCATIONAL NOTE: GITHUB_TOKEN is automatically provided by GitHub
+      - name: Login to Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      # Generate image metadata (tags and labels)
+      # EDUCATIONAL NOTE: This creates tags like:
+      #   ghcr.io/username/repo/backend:abc1234
+      #   ghcr.io/username/repo/backend:latest
+      - name: Extract metadata for Backend
+        id: meta-backend
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_BACKEND }}
+          tags: |
+            type=sha,prefix=
+            type=raw,value=latest
+
+      - name: Extract metadata for ML Service
+        id: meta-ml
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_ML }}
+          tags: |
+            type=sha,prefix=
+            type=raw,value=latest
+
+      # Build and push Backend image
+      - name: Build and Push Backend
+        uses: docker/build-push-action@v5
+        with:
+          context: ./ai-anti-spam-shield-backend
+          push: true
+          tags: ${{ steps.meta-backend.outputs.tags }}
+          labels: ${{ steps.meta-backend.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          # EDUCATIONAL NOTE: Layer caching dramatically speeds up builds
+          # Only changed layers are rebuilt
+
+      # Build and push ML Service image
+      - name: Build and Push ML Service
+        uses: docker/build-push-action@v5
+        with:
+          context: ./ai-anti-spam-shield-service-model
+          push: true
+          tags: ${{ steps.meta-ml.outputs.tags }}
+          labels: ${{ steps.meta-ml.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Print image tags
+        run: |
+          echo "====================================="
+          echo "      DOCKER IMAGES PUSHED           "
+          echo "====================================="
+          echo "Backend: ${{ steps.meta-backend.outputs.tags }}"
+          echo "ML Service: ${{ steps.meta-ml.outputs.tags }}"
+          echo "====================================="
+
+  # ============================================================
+  # JOB 3: DEPLOY TO DIGITALOCEAN
+  # ============================================================
+  deploy:
+    name: Deploy to DigitalOcean
+    runs-on: ubuntu-latest
+    needs: build-and-push
+    environment: production
+    # EDUCATIONAL NOTE: 'environment' enables deployment protection rules
+    # You can require manual approval in GitHub Settings > Environments
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      # Deploy via SSH
+      # EDUCATIONAL NOTE: This connects to your server and runs commands
+      - name: Deploy to Server
+        uses: appleboy/ssh-action@v1.0.3
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REGISTRY: ${{ env.REGISTRY }}
+          ACTOR: ${{ github.actor }}
+        with:
+          host: ${{ secrets.DROPLET_IP }}
+          username: ${{ secrets.DROPLET_USER }}
+          key: ${{ secrets.DROPLET_SSH_KEY }}
+          envs: GITHUB_TOKEN,REGISTRY,ACTOR
+          script: |
+            # ============================================
+            # DEPLOYMENT SCRIPT
+            # Runs on your DigitalOcean server
+            # ============================================
+
+            set -e  # Exit immediately if any command fails
+
+            echo "====================================="
+            echo "  AI Anti-Spam Shield Deployment"
+            echo "  $(date)"
+            echo "====================================="
+
+            # Navigate to project directory
+            PROJECT_DIR="/root/ai-anti-spam-shield"
+            cd $PROJECT_DIR || { echo "Project directory not found!"; exit 1; }
+
+            # Pull latest code
+            echo "[1/6] Pulling latest code..."
+            git fetch origin main
+            git reset --hard origin/main
+
+            # Login to GitHub Container Registry
+            echo "[2/6] Logging into container registry..."
+            echo $GITHUB_TOKEN | docker login ghcr.io -u $ACTOR --password-stdin
+
+            # Pull new Docker images
+            echo "[3/6] Pulling new Docker images..."
+            docker compose -f deploy/digitalocean/docker-compose.prod.yml pull || true
+
+            # Save current state for potential rollback
+            echo "[4/6] Creating backup point..."
+            docker images --format "{{.Repository}}:{{.Tag}}" | grep ghcr > /tmp/current_images.txt || true
+
+            # Restart services with new images
+            echo "[5/6] Restarting services..."
+            docker compose -f deploy/digitalocean/docker-compose.prod.yml down --timeout 30
+            docker compose -f deploy/digitalocean/docker-compose.prod.yml up -d
+
+            # Wait for services to start
+            echo "[6/6] Waiting for services to be healthy..."
+            sleep 30
+
+            # Show running containers
+            echo ""
+            echo "====================================="
+            echo "       DEPLOYMENT COMPLETE           "
+            echo "====================================="
+            docker compose -f deploy/digitalocean/docker-compose.prod.yml ps
+            echo "====================================="
+
+      # Verify deployment with health check
+      - name: Health Check
+        run: |
+          echo "Verifying deployment..."
+
+          # Wait for services to fully start
+          sleep 15
+
+          # Check health endpoint with retries
+          max_attempts=5
+          attempt=1
+
+          while [ $attempt -le $max_attempts ]; do
+            echo "Health check attempt $attempt/$max_attempts..."
+
+            response=$(curl -s -o /dev/null -w "%{http_code}" \
+              --connect-timeout 10 \
+              --max-time 30 \
+              "https://${{ secrets.DOMAIN }}/health" 2>/dev/null || echo "000")
+
+            if [ "$response" = "200" ]; then
+              echo "Health check PASSED!"
+              echo "Deployment successful!"
+              exit 0
+            fi
+
+            echo "Got HTTP $response, retrying in 15s..."
+            attempt=$((attempt + 1))
+            sleep 15
+          done
+
+          echo "Health check FAILED after $max_attempts attempts"
+          exit 1
+
+      # Automatic rollback on failure
+      # EDUCATIONAL NOTE: This protects production by reverting if deployment fails
+      - name: Rollback on Failure
+        if: failure()
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.DROPLET_IP }}
+          username: ${{ secrets.DROPLET_USER }}
+          key: ${{ secrets.DROPLET_SSH_KEY }}
+          script: |
+            echo "====================================="
+            echo "      ROLLBACK INITIATED             "
+            echo "====================================="
+
+            cd /root/ai-anti-spam-shield
+
+            # Go back to previous commit
+            git checkout HEAD~1
+
+            # Restart with previous version
+            docker compose -f deploy/digitalocean/docker-compose.prod.yml down
+            docker compose -f deploy/digitalocean/docker-compose.prod.yml up -d
+
+            echo "====================================="
+            echo "       ROLLBACK COMPLETE             "
+            echo "====================================="
+
+  # ============================================================
+  # JOB 4: POST-DEPLOYMENT NOTIFICATIONS
+  # ============================================================
+  notify:
+    name: Send Notifications
+    runs-on: ubuntu-latest
+    needs: deploy
+    if: always()
+    # EDUCATIONAL NOTE: 'always()' runs this job regardless of success/failure
+
+    steps:
+      - name: Deployment Success
+        if: needs.deploy.result == 'success'
+        run: |
+          echo "====================================="
+          echo "     DEPLOYMENT SUCCESSFUL!          "
+          echo "====================================="
+          echo ""
+          echo "Version: ${{ github.sha }}"
+          echo "Branch: ${{ github.ref_name }}"
+          echo "Deployed by: ${{ github.actor }}"
+          echo "Time: $(date)"
+          echo ""
+          echo "====================================="
+
+          # TODO: Add Slack/Discord notification here
+          # Example for Discord:
+          # curl -X POST -H "Content-Type: application/json" \
+          #   -d '{"content": "Deployment successful!"}' \
+          #   ${{ secrets.DISCORD_WEBHOOK }}
+
+      - name: Deployment Failed
+        if: needs.deploy.result == 'failure'
+        run: |
+          echo "====================================="
+          echo "      DEPLOYMENT FAILED!             "
+          echo "====================================="
+          echo ""
+          echo "Version: ${{ github.sha }}"
+          echo "Branch: ${{ github.ref_name }}"
+          echo "Attempted by: ${{ github.actor }}"
+          echo "Time: $(date)"
+          echo ""
+          echo "Please check the logs and fix the issue."
+          echo "Automatic rollback may have been triggered."
+          echo "====================================="
+
+  # ============================================================
+  # CLEANUP OLD IMAGES (Weekly)
+  # ============================================================
+  cleanup:
+    name: Cleanup Old Images
+    runs-on: ubuntu-latest
+    needs: deploy
+    if: success()
+
+    steps:
+      - name: Delete old container images
+        uses: actions/delete-package-versions@v5
+        with:
+          package-name: 'backend'
+          package-type: 'container'
+          min-versions-to-keep: 5
+          delete-only-untagged-versions: 'true'
+        continue-on-error: true
+        # EDUCATIONAL NOTE: This keeps your registry clean
+        # by removing old, unused images

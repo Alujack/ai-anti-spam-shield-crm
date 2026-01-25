@@ -1,0 +1,185 @@
+# ===========================================
+# CI/CD Docker Compose for DigitalOcean
+# Uses pre-built images from GitHub Container Registry
+# ===========================================
+# Usage: docker compose -f docker-compose.cicd.yml up -d
+#
+# EDUCATIONAL NOTE:
+# This file pulls pre-built images from ghcr.io instead of
+# building locally. This is faster and ensures consistency
+# between what was tested in CI and what runs in production.
+
+services:
+  # ===========================================
+  # NGINX REVERSE PROXY
+  # ===========================================
+  nginx:
+    image: nginx:alpine
+    container_name: ai-shield-nginx
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/conf.d:/etc/nginx/conf.d:ro
+      - /etc/letsencrypt:/etc/letsencrypt:ro
+      - /var/www/certbot:/var/www/certbot:ro
+    ports:
+      - "80:80"
+      - "443:443"
+    depends_on:
+      - backend
+    networks:
+      - ai-shield-network
+    restart: unless-stopped
+
+  # ===========================================
+  # NODE.JS BACKEND (Pre-built from CI/CD)
+  # ===========================================
+  backend:
+    # EDUCATIONAL NOTE: Using image from GitHub Container Registry
+    # The tag will be updated by the CD pipeline
+    image: ghcr.io/alujack/ai-anti-spam-shield-crm/backend:latest
+    container_name: ai-shield-backend
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      DATABASE_URL: postgresql://aishield:${DB_PASSWORD}@postgres:5432/aishield
+      REDIS_URL: redis://redis:6379
+      AI_SERVICE_URL: http://ml-service:8000
+      JWT_SECRET: ${JWT_SECRET}
+      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET}
+      ENCRYPTION_KEY: ${ENCRYPTION_KEY}
+    volumes:
+      - backend-logs:/logs
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      ml-service:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    networks:
+      - ai-shield-network
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: '0.5'
+
+  # ===========================================
+  # UNIFIED WORKER (Pre-built from CI/CD)
+  # ===========================================
+  worker:
+    image: ghcr.io/alujack/ai-anti-spam-shield-crm/backend:latest
+    container_name: ai-shield-worker
+    entrypoint: []
+    command: ["node", "src/services/queue/workers/unified.worker.js"]
+    environment:
+      NODE_ENV: production
+      WORKER_TYPE: unified
+      DATABASE_URL: postgresql://aishield:${DB_PASSWORD}@postgres:5432/aishield
+      REDIS_URL: redis://redis:6379
+      AI_SERVICE_URL: http://ml-service:8000
+    depends_on:
+      - backend
+    networks:
+      - ai-shield-network
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 384M
+          cpus: '0.5'
+
+  # ===========================================
+  # ML SERVICE (Pre-built from CI/CD)
+  # ===========================================
+  ml-service:
+    image: ghcr.io/alujack/ai-anti-spam-shield-crm/ml-service:latest
+    container_name: ai-shield-ml-service
+    environment:
+      MODEL_DIR: /app/model
+      PYTHONUNBUFFERED: 1
+      HF_HOME: /app/.cache/huggingface
+      TRANSFORMERS_CACHE: /app/.cache/huggingface
+    volumes:
+      - ml-cache:/app/.cache
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+    networks:
+      - ai-shield-network
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 1.5G
+          cpus: '1'
+
+  # ===========================================
+  # POSTGRESQL DATABASE
+  # ===========================================
+  postgres:
+    image: postgres:15-alpine
+    container_name: ai-shield-postgres
+    environment:
+      POSTGRES_DB: aishield
+      POSTGRES_USER: aishield
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ../../scripts/init-db.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U aishield -d aishield"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - ai-shield-network
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: '0.5'
+
+  # ===========================================
+  # REDIS (Queue + Cache)
+  # ===========================================
+  redis:
+    image: redis:7-alpine
+    container_name: ai-shield-redis
+    command: redis-server --appendonly yes --maxmemory 128mb --maxmemory-policy allkeys-lru
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - ai-shield-network
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 160M
+          cpus: '0.25'
+
+networks:
+  ai-shield-network:
+    driver: bridge
+
+volumes:
+  postgres-data:
+  redis-data:
+  ml-cache:
+  backend-logs:
