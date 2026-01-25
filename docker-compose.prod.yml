@@ -1,8 +1,49 @@
-# version: '3.8'
+# ===========================================
+# AI Anti-Spam Shield - Production Deployment
+# ===========================================
+# Usage: docker-compose -f docker-compose.prod.yml up -d
 
 services:
   # ===========================================
-  # API GATEWAY
+  # NGINX REVERSE PROXY (SSL Termination)
+  # ===========================================
+  nginx:
+    image: nginx:alpine
+    container_name: ai-shield-nginx
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/conf.d:/etc/nginx/conf.d:ro
+      - ./certbot/conf:/etc/letsencrypt:ro
+      - ./certbot/www:/var/www/certbot:ro
+    depends_on:
+      - gateway
+    networks:
+      - ai-shield-network
+    restart: always
+    healthcheck:
+      test: ["CMD", "nginx", "-t"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # ===========================================
+  # CERTBOT (SSL Certificate Management)
+  # ===========================================
+  certbot:
+    image: certbot/certbot:latest
+    container_name: ai-shield-certbot
+    volumes:
+      - ./certbot/conf:/etc/letsencrypt
+      - ./certbot/www:/var/www/certbot
+    entrypoint: "/bin/sh -c 'trap exit TERM; while :; do certbot renew; sleep 12h & wait $${!}; done;'"
+    networks:
+      - ai-shield-network
+
+  # ===========================================
+  # API GATEWAY (Kong)
   # ===========================================
   gateway:
     image: kong:3.4-alpine
@@ -14,19 +55,17 @@ services:
       KONG_ADMIN_ACCESS_LOG: /dev/stdout
       KONG_PROXY_ERROR_LOG: /dev/stderr
       KONG_ADMIN_ERROR_LOG: /dev/stderr
-      KONG_ADMIN_LISTEN: "0.0.0.0:8001"
+      KONG_ADMIN_LISTEN: "127.0.0.1:8001"
     volumes:
       - ./gateway/kong/kong.yml:/etc/kong/kong.yml:ro
-    ports:
-      - "8080:8000"      # Proxy port (public)
-      - "8443:8443"      # Proxy SSL
-      - "8001:8001"      # Admin API (internal only)
+    expose:
+      - "8000"
     depends_on:
       backend:
         condition: service_healthy
     networks:
       - ai-shield-network
-    restart: unless-stopped
+    restart: always
 
   # ===========================================
   # NODE.JS BACKEND
@@ -39,16 +78,18 @@ services:
     environment:
       NODE_ENV: production
       PORT: 3000
-      DATABASE_URL: postgresql://aishield:${DB_PASSWORD:-secretpassword}@postgres:5432/aishield
+      DATABASE_URL: postgresql://aishield:${DB_PASSWORD}@postgres:5432/aishield
       REDIS_URL: redis://redis:6379
       AI_SERVICE_URL: http://ml-service:8000
-      JWT_SECRET: ${JWT_SECRET:-your-super-secret-jwt-key}
-      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:-your-refresh-secret}
-      ENCRYPTION_KEY: ${ENCRYPTION_KEY:-your-32-byte-encryption-key-here}
+      JWT_SECRET: ${JWT_SECRET}
+      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET}
+      ENCRYPTION_KEY: ${ENCRYPTION_KEY}
+      CORS_ORIGIN: ${CORS_ORIGIN:-*}
+      LOG_LEVEL: ${LOG_LEVEL:-info}
     volumes:
       - backend-logs:/app/logs
-    ports:
-      - "3000:3000"      # Direct access (for debugging)
+    expose:
+      - "3000"
     depends_on:
       postgres:
         condition: service_healthy
@@ -64,7 +105,13 @@ services:
       start_period: 40s
     networks:
       - ai-shield-network
-    restart: unless-stopped
+    restart: always
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+        reservations:
+          memory: 256M
 
   # ===========================================
   # QUEUE WORKERS
@@ -77,16 +124,21 @@ services:
     environment:
       NODE_ENV: production
       WORKER_TYPE: text
-      DATABASE_URL: postgresql://aishield:${DB_PASSWORD:-secretpassword}@postgres:5432/aishield
+      DATABASE_URL: postgresql://aishield:${DB_PASSWORD}@postgres:5432/aishield
       REDIS_URL: redis://redis:6379
       AI_SERVICE_URL: http://ml-service:8000
     depends_on:
       - backend
     networks:
       - ai-shield-network
-    restart: unless-stopped
+    restart: always
     deploy:
       replicas: 2
+      resources:
+        limits:
+          memory: 256M
+        reservations:
+          memory: 128M
 
   voice-worker:
     build:
@@ -97,14 +149,20 @@ services:
     environment:
       NODE_ENV: production
       WORKER_TYPE: voice
-      DATABASE_URL: postgresql://aishield:${DB_PASSWORD:-secretpassword}@postgres:5432/aishield
+      DATABASE_URL: postgresql://aishield:${DB_PASSWORD}@postgres:5432/aishield
       REDIS_URL: redis://redis:6379
       AI_SERVICE_URL: http://ml-service:8000
     depends_on:
       - backend
     networks:
       - ai-shield-network
-    restart: unless-stopped
+    restart: always
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+        reservations:
+          memory: 256M
 
   url-worker:
     build:
@@ -115,14 +173,20 @@ services:
     environment:
       NODE_ENV: production
       WORKER_TYPE: url
-      DATABASE_URL: postgresql://aishield:${DB_PASSWORD:-secretpassword}@postgres:5432/aishield
+      DATABASE_URL: postgresql://aishield:${DB_PASSWORD}@postgres:5432/aishield
       REDIS_URL: redis://redis:6379
       AI_SERVICE_URL: http://ml-service:8000
     depends_on:
       - backend
     networks:
       - ai-shield-network
-    restart: unless-stopped
+    restart: always
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+        reservations:
+          memory: 128M
 
   # ===========================================
   # ML SERVICE (FastAPI)
@@ -137,8 +201,8 @@ services:
       PYTHONUNBUFFERED: 1
     volumes:
       - ml-models:/app/model
-    ports:
-      - "8000:8000"      # Direct access (for debugging)
+    expose:
+      - "8000"
     healthcheck:
       test: ["CMD", "python", "-c", "import requests; requests.get('http://localhost:8000/health')"]
       interval: 30s
@@ -147,15 +211,13 @@ services:
       start_period: 60s
     networks:
       - ai-shield-network
-    restart: unless-stopped
-    # Uncomment for GPU support:
-    # deploy:
-    #   resources:
-    #     reservations:
-    #       devices:
-    #         - driver: nvidia
-    #           count: 1
-    #           capabilities: [gpu]
+    restart: always
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+        reservations:
+          memory: 1G
 
   # ===========================================
   # POSTGRESQL DATABASE
@@ -166,12 +228,12 @@ services:
     environment:
       POSTGRES_DB: aishield
       POSTGRES_USER: aishield
-      POSTGRES_PASSWORD: ${DB_PASSWORD:-secretpassword}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
     volumes:
       - postgres-data:/var/lib/postgresql/data
       - ./scripts/init-db.sql:/docker-entrypoint-initdb.d/init.sql:ro
-    ports:
-      - "5432:5432"      # Direct access (for debugging)
+    expose:
+      - "5432"
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U aishield -d aishield"]
       interval: 10s
@@ -179,7 +241,13 @@ services:
       retries: 5
     networks:
       - ai-shield-network
-    restart: unless-stopped
+    restart: always
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+        reservations:
+          memory: 256M
 
   # ===========================================
   # REDIS (Queue + Cache)
@@ -187,11 +255,11 @@ services:
   redis:
     image: redis:7-alpine
     container_name: ai-shield-redis
-    command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru
+    command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru --requirepass ${REDIS_PASSWORD:-}
     volumes:
       - redis-data:/data
-    ports:
-      - "6379:6379"      # Direct access (for debugging)
+    expose:
+      - "6379"
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 10s
@@ -199,10 +267,16 @@ services:
       retries: 5
     networks:
       - ai-shield-network
-    restart: unless-stopped
+    restart: always
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+        reservations:
+          memory: 128M
 
   # ===========================================
-  # MONITORING (Optional - Phase 8)
+  # MONITORING (Production)
   # ===========================================
   prometheus:
     image: prom/prometheus:latest
@@ -210,31 +284,37 @@ services:
     volumes:
       - ./monitoring/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
       - prometheus-data:/prometheus
-    ports:
-      - "9090:9090"
+    expose:
+      - "9090"
     networks:
       - ai-shield-network
-    restart: unless-stopped
-    profiles:
-      - monitoring
+    restart: always
+    deploy:
+      resources:
+        limits:
+          memory: 256M
 
   grafana:
     image: grafana/grafana:latest
     container_name: ai-shield-grafana
     environment:
-      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_PASSWORD:-admin}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_PASSWORD}
+      GF_SERVER_ROOT_URL: https://${DOMAIN:-localhost}/grafana
+      GF_SERVER_SERVE_FROM_SUB_PATH: "true"
     volumes:
       - ./monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
       - grafana-data:/var/lib/grafana
-    ports:
-      - "3001:3000"
+    expose:
+      - "3000"
     depends_on:
       - prometheus
     networks:
       - ai-shield-network
-    restart: unless-stopped
-    profiles:
-      - monitoring
+    restart: always
+    deploy:
+      resources:
+        limits:
+          memory: 256M
 
 # ===========================================
 # NETWORKS

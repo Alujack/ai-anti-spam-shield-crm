@@ -61,3 +61,11 @@ redis-data/
 ml-models/
 grafana-data/
 prometheus-data/
+
+# SSL Certificates
+certbot/
+
+# Backups
+*.sql
+*.sql.gz
+backups/
