@@ -2,12 +2,13 @@ const Redis = require('ioredis');
 const logger = require('../utils/logger');
 
 // Redis connection configuration
+// Note: maxRetriesPerRequest must be null for BullMQ compatibility
 const redisConfig = {
   host: process.env.REDIS_HOST || 'localhost',
   port: parseInt(process.env.REDIS_PORT) || 6379,
   password: process.env.REDIS_PASSWORD || undefined,
   db: parseInt(process.env.REDIS_DB) || 0,
-  maxRetriesPerRequest: 3,
+  maxRetriesPerRequest: null,
   retryDelayOnFailover: 100,
   enableReadyCheck: true,
   lazyConnect: true,
