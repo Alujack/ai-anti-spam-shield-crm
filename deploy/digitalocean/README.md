@@ -95,13 +95,60 @@ docker compose -f docker-compose.prod.yml logs -f
 curl http://localhost/health
 ```
 
-## Step 5: Setup Domain (Optional)
+## Step 5: Setup Domain & SSL
+
+### 5.1 Configure DNS
 
 1. In DigitalOcean, go to **Networking** → **Domains**
-2. Add your domain
-3. Create A record pointing to your Droplet IP
-4. Update `.env` with your domain
-5. Update `gateway/kong/kong.prod.yml` CORS origins
+2. Add your domain (e.g., `aiscamshield.codes`)
+3. Create these DNS records:
+   | Type | Hostname | Value |
+   |------|----------|-------|
+   | A | @ | YOUR_DROPLET_IP |
+   | A | www | YOUR_DROPLET_IP |
+
+4. Wait for DNS propagation (5-30 minutes)
+5. Verify: `dig +short aiscamshield.codes`
+
+### 5.2 Setup SSL with Let's Encrypt
+
+```bash
+# SSH into your droplet
+ssh root@YOUR_DROPLET_IP
+
+# Navigate to deploy directory
+cd /root/ai-anti-spam-shield-crm/deploy/digitalocean
+
+# Pull latest changes (includes SSL script)
+git pull origin main
+
+# Make SSL script executable
+chmod +x setup-ssl.sh
+
+# Run SSL setup (replace with your domain and email)
+./setup-ssl.sh aiscamshield.codes your@email.com
+
+# Restart services with SSL
+docker compose -f docker-compose.prod.yml up -d
+```
+
+### 5.3 Verify SSL
+
+```bash
+# Test HTTPS endpoint
+curl https://aiscamshield.codes/health
+
+# Check certificate
+openssl s_client -connect aiscamshield.codes:443 -servername aiscamshield.codes
+```
+
+### 5.4 Certificate Renewal
+
+Certificates auto-renew via cron job. To manually renew:
+```bash
+certbot renew --dry-run  # Test renewal
+certbot renew            # Actually renew
+```
 
 ## Memory Usage Estimate
 

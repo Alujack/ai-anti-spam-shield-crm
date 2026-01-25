@@ -1,12 +1,12 @@
 # ===========================================
 # Stage 1: Dependencies
 # ===========================================
-FROM node:20-alpine AS deps
+FROM node:20-slim AS deps
 
 WORKDIR /app
 
 # Install dependencies for native modules
-RUN apk add --no-cache python3 make g++ curl
+RUN apt-get update && apt-get install -y python3 make g++ curl openssl && rm -rf /var/lib/apt/lists/*
 
 # Copy package files
 COPY package*.json ./
@@ -21,16 +21,16 @@ RUN npx prisma generate
 # ===========================================
 # Stage 2: Production
 # ===========================================
-FROM node:20-alpine AS runner
+FROM node:20-slim AS runner
 
 WORKDIR /app
 
 # Install curl for health checks
-RUN apk add --no-cache curl
+RUN apt-get update && apt-get install -y curl openssl && rm -rf /var/lib/apt/lists/*
 
 # Create non-root user
-RUN addgroup --system --gid 1001 nodejs
-RUN adduser --system --uid 1001 aishield
+RUN groupadd --system --gid 1001 nodejs
+RUN useradd --system --uid 1001 --gid nodejs aishield
 
 # Copy dependencies
 COPY --from=deps /app/node_modules ./node_modules

@@ -33,8 +33,6 @@ services:
         protocols:
           - http
           - https
-          - ws
-          - wss
 
 # ===========================================
 # PLUGINS (Global) - Production Hardened
@@ -55,13 +53,14 @@ plugins:
       allowed_payload_size: 10
       size_unit: megabytes
 
-  # CORS - UPDATE THESE DOMAINS!
+  # CORS Configuration
   - name: cors
     config:
       origins:
-        - https://your-domain.com
-        - https://www.your-domain.com
-        # Add your mobile app origin if needed
+        - "https://aiscamshield.codes"
+        - "https://www.aiscamshield.codes"
+        - "http://localhost:3000"
+        - "http://localhost:8080"
       methods:
         - GET
         - POST
@@ -85,16 +84,6 @@ plugins:
       header_name: X-Request-ID
       generator: uuid
       echo_downstream: true
-
-  # Bot Detection
-  - name: bot-detection
-    config:
-      deny:
-        - curl
-        - wget
-      allow:
-        - postman
-        - insomnia
 
 # ===========================================
 # UPSTREAMS with Health Checks

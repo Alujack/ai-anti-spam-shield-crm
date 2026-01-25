@@ -19,8 +19,12 @@ services:
       KONG_PROXY_ERROR_LOG: /dev/stderr
       KONG_ADMIN_ERROR_LOG: /dev/stderr
       KONG_ADMIN_LISTEN: "127.0.0.1:8001"  # Only localhost
+      # SSL Configuration
+      KONG_SSL_CERT: /etc/kong/ssl/fullchain.pem
+      KONG_SSL_CERT_KEY: /etc/kong/ssl/privkey.pem
     volumes:
       - ../../gateway/kong/kong.prod.yml:/etc/kong/kong.yml:ro
+      - /etc/kong/ssl:/etc/kong/ssl:ro
     ports:
       - "80:8000"       # HTTP
       - "443:8443"      # HTTPS
@@ -33,8 +37,8 @@ services:
     deploy:
       resources:
         limits:
-          memory: 128M
-          cpus: '0.25'
+          memory: 256M
+          cpus: '0.5'
 
   # ===========================================
   # NODE.JS BACKEND
@@ -44,6 +48,7 @@ services:
       context: ../../ai-anti-spam-shield-backend
       dockerfile: Dockerfile
     container_name: ai-shield-backend
+    user: root
     environment:
       NODE_ENV: production
       PORT: 3000
@@ -54,7 +59,7 @@ services:
       JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET}
       ENCRYPTION_KEY: ${ENCRYPTION_KEY}
     volumes:
-      - backend-logs:/app/logs
+      - backend-logs:/logs
     depends_on:
       postgres:
         condition: service_healthy
@@ -85,6 +90,7 @@ services:
       context: ../../ai-anti-spam-shield-backend
       dockerfile: Dockerfile
     container_name: ai-shield-worker
+    user: root
     command: ["node", "src/services/queue/workers/unified.worker.js"]
     environment:
       NODE_ENV: production
@@ -117,11 +123,11 @@ services:
     volumes:
       - ml-models:/app/model
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
       interval: 30s
       timeout: 10s
       retries: 3
-      start_period: 60s
+      start_period: 120s
     networks:
       - ai-shield-network
     restart: unless-stopped
