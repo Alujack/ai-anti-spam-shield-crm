@@ -9,7 +9,7 @@ services:
   # API GATEWAY
   # ===========================================
   gateway:
-    image: kong:3.4-alpine
+    image: kong/kong:3.4
     container_name: ai-shield-gateway
     environment:
       KONG_DATABASE: "off"
@@ -20,7 +20,7 @@ services:
       KONG_ADMIN_ERROR_LOG: /dev/stderr
       KONG_ADMIN_LISTEN: "127.0.0.1:8001"  # Only localhost
     volumes:
-      - ./gateway/kong/kong.prod.yml:/etc/kong/kong.yml:ro
+      - ../../gateway/kong/kong.prod.yml:/etc/kong/kong.yml:ro
     ports:
       - "80:8000"       # HTTP
       - "443:8443"      # HTTPS
@@ -41,7 +41,7 @@ services:
   # ===========================================
   backend:
     build:
-      context: ./ai-anti-spam-shield-backend
+      context: ../../ai-anti-spam-shield-backend
       dockerfile: Dockerfile
     container_name: ai-shield-backend
     environment:
@@ -82,7 +82,7 @@ services:
   # ===========================================
   worker:
     build:
-      context: ./ai-anti-spam-shield-backend
+      context: ../../ai-anti-spam-shield-backend
       dockerfile: Dockerfile
     container_name: ai-shield-worker
     command: ["node", "src/services/queue/workers/unified.worker.js"]
@@ -108,7 +108,7 @@ services:
   # ===========================================
   ml-service:
     build:
-      context: ./ai-anti-spam-shield-service-model
+      context: ../../ai-anti-spam-shield-service-model
       dockerfile: Dockerfile
     container_name: ai-shield-ml-service
     environment:
@@ -143,7 +143,7 @@ services:
       POSTGRES_PASSWORD: ${DB_PASSWORD}
     volumes:
       - postgres-data:/var/lib/postgresql/data
-      - ./scripts/init-db.sql:/docker-entrypoint-initdb.d/init.sql:ro
+      - ../../scripts/init-db.sql:/docker-entrypoint-initdb.d/init.sql:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U aishield -d aishield"]
       interval: 10s
