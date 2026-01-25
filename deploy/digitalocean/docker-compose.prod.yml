@@ -1,0 +1,192 @@
+# ===========================================
+# Production Docker Compose for DigitalOcean
+# Optimized for 4GB RAM Droplet ($24/mo)
+# ===========================================
+# Usage: docker compose -f docker-compose.prod.yml up -d
+
+services:
+  # ===========================================
+  # API GATEWAY
+  # ===========================================
+  gateway:
+    image: kong:3.4-alpine
+    container_name: ai-shield-gateway
+    environment:
+      KONG_DATABASE: "off"
+      KONG_DECLARATIVE_CONFIG: /etc/kong/kong.yml
+      KONG_PROXY_ACCESS_LOG: /dev/stdout
+      KONG_ADMIN_ACCESS_LOG: /dev/stdout
+      KONG_PROXY_ERROR_LOG: /dev/stderr
+      KONG_ADMIN_ERROR_LOG: /dev/stderr
+      KONG_ADMIN_LISTEN: "127.0.0.1:8001"  # Only localhost
+    volumes:
+      - ./gateway/kong/kong.prod.yml:/etc/kong/kong.yml:ro
+    ports:
+      - "80:8000"       # HTTP
+      - "443:8443"      # HTTPS
+    depends_on:
+      backend:
+        condition: service_healthy
+    networks:
+      - ai-shield-network
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 128M
+          cpus: '0.25'
+
+  # ===========================================
+  # NODE.JS BACKEND
+  # ===========================================
+  backend:
+    build:
+      context: ./ai-anti-spam-shield-backend
+      dockerfile: Dockerfile
+    container_name: ai-shield-backend
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      DATABASE_URL: postgresql://aishield:${DB_PASSWORD}@postgres:5432/aishield
+      REDIS_URL: redis://redis:6379
+      AI_SERVICE_URL: http://ml-service:8000
+      JWT_SECRET: ${JWT_SECRET}
+      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET}
+      ENCRYPTION_KEY: ${ENCRYPTION_KEY}
+    volumes:
+      - backend-logs:/app/logs
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      ml-service:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    networks:
+      - ai-shield-network
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: '0.5'
+
+  # ===========================================
+  # SINGLE UNIFIED WORKER (saves memory)
+  # ===========================================
+  worker:
+    build:
+      context: ./ai-anti-spam-shield-backend
+      dockerfile: Dockerfile
+    container_name: ai-shield-worker
+    command: ["node", "src/services/queue/workers/unified.worker.js"]
+    environment:
+      NODE_ENV: production
+      WORKER_TYPE: unified
+      DATABASE_URL: postgresql://aishield:${DB_PASSWORD}@postgres:5432/aishield
+      REDIS_URL: redis://redis:6379
+      AI_SERVICE_URL: http://ml-service:8000
+    depends_on:
+      - backend
+    networks:
+      - ai-shield-network
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 384M
+          cpus: '0.5'
+
+  # ===========================================
+  # ML SERVICE (FastAPI)
+  # ===========================================
+  ml-service:
+    build:
+      context: ./ai-anti-spam-shield-service-model
+      dockerfile: Dockerfile
+    container_name: ai-shield-ml-service
+    environment:
+      MODEL_DIR: /app/model
+      PYTHONUNBUFFERED: 1
+    volumes:
+      - ml-models:/app/model
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    networks:
+      - ai-shield-network
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+          cpus: '1'
+
+  # ===========================================
+  # POSTGRESQL DATABASE
+  # ===========================================
+  postgres:
+    image: postgres:15-alpine
+    container_name: ai-shield-postgres
+    environment:
+      POSTGRES_DB: aishield
+      POSTGRES_USER: aishield
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ./scripts/init-db.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U aishield -d aishield"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - ai-shield-network
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: '0.5'
+
+  # ===========================================
+  # REDIS (Queue + Cache)
+  # ===========================================
+  redis:
+    image: redis:7-alpine
+    container_name: ai-shield-redis
+    command: redis-server --appendonly yes --maxmemory 128mb --maxmemory-policy allkeys-lru
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - ai-shield-network
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 160M
+          cpus: '0.25'
+
+networks:
+  ai-shield-network:
+    driver: bridge
+
+volumes:
+  postgres-data:
+  redis-data:
+  ml-models:
+  backend-logs:
