@@ -1,229 +1,132 @@
-# DigitalOcean Deployment Guide
+# AI Anti-Spam Shield - DigitalOcean Deployment
 
-## Prerequisites
-- DigitalOcean account with GitHub Student Pack ($200 credit)
-- Domain name (optional but recommended)
-- SSH key pair
+> For comprehensive documentation, see [DEPLOYMENT_GUIDE.md](DEPLOYMENT_GUIDE.md)
 
-## Step 1: Create Droplet
+## Quick Start
 
-1. Go to [DigitalOcean Console](https://cloud.digitalocean.com/)
-2. Click **Create** → **Droplets**
-3. Configure:
-   - **Region**: Choose closest to your users (Singapore for Cambodia)
-   - **Image**: Ubuntu 22.04 LTS
-   - **Size**: Basic → Regular → **$24/mo** (4GB RAM, 2 vCPU)
-   - **Authentication**: SSH Key (recommended)
-   - **Hostname**: `ai-shield-prod`
+### 1. Create Droplet
+- **Image**: Ubuntu 24.04 LTS
+- **Size**: $24/month (2 vCPU, 4GB RAM)
+- **Region**: Singapore (SGP1)
 
-4. Click **Create Droplet**
-5. Note down the IP address
-
-## Step 2: Initial Server Setup
-
-SSH into your droplet:
+### 2. Server Setup
 ```bash
 ssh root@YOUR_DROPLET_IP
-```
-
-Run the setup script:
-```bash
-curl -sSL https://raw.githubusercontent.com/YOUR_USERNAME/YOUR_REPO/main/deploy/digitalocean/setup-droplet.sh | bash
-```
-
-Or manually:
-```bash
-# Update system
-apt update && apt upgrade -y
 
 # Install Docker
 curl -fsSL https://get.docker.com | sh
-usermod -aG docker $USER
-
-# Install Docker Compose
-apt install -y docker-compose-plugin
+apt install -y docker-compose-plugin git curl certbot
 
 # Configure firewall
-ufw default deny incoming
-ufw default allow outgoing
-ufw allow ssh
-ufw allow 80/tcp
-ufw allow 443/tcp
-ufw enable
-
-# Log out and back in
-exit
+ufw allow OpenSSH && ufw allow 80/tcp && ufw allow 443/tcp && ufw enable
 ```
 
-## Step 3: Deploy Application
-
+### 3. Deploy
 ```bash
-# SSH back in
-ssh root@YOUR_DROPLET_IP
-
-# Clone repository
+# Clone and configure
 git clone https://github.com/YOUR_USERNAME/ai-anti-spam-shield-crm.git
-cd ai-anti-spam-shield-crm
+cd ai-anti-spam-shield-crm/deploy/digitalocean
+cp .env.example .env
 
-# Create environment file
-cp .env.production .env
+# Generate secrets
+cat >> .env << EOF
+DB_PASSWORD=$(openssl rand -base64 32)
+JWT_SECRET=$(openssl rand -base64 64)
+JWT_REFRESH_SECRET=$(openssl rand -base64 64)
+ENCRYPTION_KEY=$(openssl rand -base64 32)
+EOF
 
-# Generate secure secrets
-echo "DB_PASSWORD=$(openssl rand -base64 32)" >> .env
-echo "JWT_SECRET=$(openssl rand -base64 64)" >> .env
-echo "JWT_REFRESH_SECRET=$(openssl rand -base64 64)" >> .env
-echo "ENCRYPTION_KEY=$(openssl rand -base64 32)" >> .env
-
-# Edit .env to update domain and other settings
-nano .env
+# Train ML model
+docker compose -f docker-compose.prod.yml build ml-service
+docker compose -f docker-compose.prod.yml run --rm ml-service bash -c "cd /app/model && python train.py --unified"
 
 # Deploy
-chmod +x deploy/digitalocean/deploy.sh
-./deploy/digitalocean/deploy.sh
-```
-
-## Step 4: Verify Deployment
-
-```bash
-# Check container status
-docker compose -f docker-compose.prod.yml ps
-
-# Check logs
-docker compose -f docker-compose.prod.yml logs -f
-
-# Test health endpoint
-curl http://localhost/health
-```
-
-## Step 5: Setup Domain & SSL
-
-### 5.1 Configure DNS
-
-1. In DigitalOcean, go to **Networking** → **Domains**
-2. Add your domain (e.g., `aiscamshield.codes`)
-3. Create these DNS records:
-   | Type | Hostname | Value |
-   |------|----------|-------|
-   | A | @ | YOUR_DROPLET_IP |
-   | A | www | YOUR_DROPLET_IP |
-
-4. Wait for DNS propagation (5-30 minutes)
-5. Verify: `dig +short aiscamshield.codes`
-
-### 5.2 Setup SSL with Let's Encrypt
-
-```bash
-# SSH into your droplet
-ssh root@YOUR_DROPLET_IP
-
-# Navigate to deploy directory
-cd /root/ai-anti-spam-shield-crm/deploy/digitalocean
-
-# Pull latest changes (includes SSL script)
-git pull origin main
-
-# Make SSL script executable
-chmod +x setup-ssl.sh
-
-# Run SSL setup (replace with your domain and email)
-./setup-ssl.sh aiscamshield.codes your@email.com
-
-# Restart services with SSL
 docker compose -f docker-compose.prod.yml up -d
 ```
 
-### 5.3 Verify SSL
-
+### 4. Setup SSL
 ```bash
-# Test HTTPS endpoint
-curl https://aiscamshield.codes/health
-
-# Check certificate
-openssl s_client -connect aiscamshield.codes:443 -servername aiscamshield.codes
+chmod +x setup-ssl.sh
+./setup-ssl.sh yourdomain.com your@email.com
+docker compose -f docker-compose.prod.yml up -d
 ```
 
-### 5.4 Certificate Renewal
-
-Certificates auto-renew via cron job. To manually renew:
+### 5. Verify
 ```bash
-certbot renew --dry-run  # Test renewal
-certbot renew            # Actually renew
+curl https://yourdomain.com/health
 ```
 
-## Memory Usage Estimate
+---
 
-| Service | Memory Limit |
-|---------|--------------|
-| Kong Gateway | 128 MB |
-| Backend | 512 MB |
-| Worker | 384 MB |
-| ML Service | 1024 MB |
-| PostgreSQL | 512 MB |
-| Redis | 160 MB |
-| **Total** | **~2.7 GB** |
+## Services
 
-Leaves ~1.3 GB for OS and buffer on a 4GB droplet.
+| Service | Port | Memory | Health Check |
+|---------|------|--------|--------------|
+| Kong Gateway | 80, 443 | 256M | - |
+| Backend | 3000 | 512M | `/health` |
+| Worker | - | 384M | - |
+| ML Service | 8000 | 1.5G | `/health` |
+| PostgreSQL | 5432 | 512M | `pg_isready` |
+| Redis | 6379 | 160M | `redis-cli ping` |
 
-## Useful Commands
+## API Endpoints
+
+### Scanning Systems
+| System | Endpoint | ML Endpoint |
+|--------|----------|-------------|
+| Message Scan | `POST /api/v1/messages/scan-text` | `/predict` |
+| Voice Scan | `POST /api/v1/messages/scan-voice` | `/predict-voice` |
+| Phishing Scan | `POST /api/v1/phishing/scan-text` | `/predict-phishing` |
+
+### Test Commands
+```bash
+# Health check
+curl https://yourdomain.com/health
+
+# Spam detection
+curl -X POST https://yourdomain.com/api/v1/messages/scan-text \
+  -H "Content-Type: application/json" \
+  -d '{"message": "You won $5000!"}'
+
+# Phishing detection
+curl -X POST https://yourdomain.com/api/v1/phishing/scan-text \
+  -H "Content-Type: application/json" \
+  -d '{"text": "Click here to verify your account"}'
+```
+
+## Common Commands
 
 ```bash
-# View all logs
+# View logs
 docker compose -f docker-compose.prod.yml logs -f
 
-# View specific service logs
-docker compose -f docker-compose.prod.yml logs -f backend
-
-# Restart a service
+# Restart service
 docker compose -f docker-compose.prod.yml restart backend
 
-# Stop all services
-docker compose -f docker-compose.prod.yml down
+# Update deployment
+git pull origin main
+docker compose -f docker-compose.prod.yml build
+docker compose -f docker-compose.prod.yml up -d
 
-# Update and redeploy
-git pull && ./deploy/digitalocean/deploy.sh
-
-# Check disk usage
-df -h
-
-# Check memory usage
-htop
-
-# Clean up Docker resources
-docker system prune -a
+# Check status
+docker compose -f docker-compose.prod.yml ps
 ```
-
-## Cost Breakdown
-
-| Resource | Monthly | Yearly |
-|----------|---------|--------|
-| Droplet (4GB) | $24 | $288 |
-| **With $200 credit** | - | **$88 out of pocket** |
 
 ## Troubleshooting
 
-### Services won't start
-```bash
-# Check which service is failing
-docker compose -f docker-compose.prod.yml ps
+| Issue | Solution |
+|-------|----------|
+| ML model not loaded | `docker exec -it ai-shield-ml-service bash -c "cd /app/model && python train.py --unified"` then `docker restart ai-shield-ml-service` |
+| Database error | Check `docker logs ai-shield-postgres` |
+| Out of memory | Check `docker stats`, consider upgrading droplet |
+| SSL error | Run `certbot renew` and restart gateway |
 
-# Check specific service logs
-docker compose -f docker-compose.prod.yml logs ml-service
-```
+## Cost
 
-### Out of memory
-```bash
-# Check memory usage
-free -h
+| With GitHub Student Pack ($200 credit) |
+|----------------------------------------|
+| ~8 months free on $24/month droplet |
 
-# Reduce Redis memory in docker-compose.prod.yml
-# Or upgrade to $48/mo droplet
-```
+---
 
-### Database connection issues
-```bash
-# Check if postgres is healthy
-docker compose -f docker-compose.prod.yml exec postgres pg_isready
-
-# View postgres logs
-docker compose -f docker-compose.prod.yml logs postgres
-```
+See [DEPLOYMENT_GUIDE.md](DEPLOYMENT_GUIDE.md) for detailed instructions.
