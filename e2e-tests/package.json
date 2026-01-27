@@ -1,0 +1,25 @@
+{
+  "name": "ai-anti-spam-shield-e2e-tests",
+  "version": "1.0.0",
+  "description": "End-to-end tests for AI Anti-Spam Shield system",
+  "scripts": {
+    "test": "jest --config jest.config.js",
+    "test:local": "E2E_ENV=local jest --config jest.config.js",
+    "test:staging": "E2E_ENV=staging jest --config jest.config.js",
+    "test:smoke": "jest --config jest.config.js --testNamePattern='smoke'",
+    "test:regression": "jest --config jest.config.js --testNamePattern='regression'",
+    "test:spam": "jest --config jest.config.js specs/spam-detection.e2e.spec.js",
+    "test:phishing": "jest --config jest.config.js specs/phishing-detection.e2e.spec.js",
+    "test:reports": "jest --config jest.config.js specs/reports.e2e.spec.js",
+    "test:verbose": "jest --config jest.config.js --verbose",
+    "test:coverage": "jest --config jest.config.js --coverage",
+    "test:watch": "jest --config jest.config.js --watch"
+  },
+  "dependencies": {
+    "jest": "^29.7.0",
+    "node-fetch": "^2.7.0"
+  },
+  "devDependencies": {
+    "@types/jest": "^29.5.12"
+  }
+}

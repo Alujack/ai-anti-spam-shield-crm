@@ -8,6 +8,7 @@ import '../../utils/colors.dart';
 import '../../widgets/feedback_buttons.dart';
 import '../../widgets/animations/success_checkmark.dart';
 import '../../widgets/animations/threat_alert_animation.dart' hide ThreatLevel;
+import '../report/create_report_screen.dart';
 
 class PhishingResultScreen extends ConsumerWidget {
   const PhishingResultScreen({super.key});
@@ -126,6 +127,7 @@ class PhishingResultScreen extends ConsumerWidget {
                         duration: const Duration(milliseconds: 500),
                         delay: const Duration(milliseconds: 300),
                         child: Container(
+                          margin: const EdgeInsets.symmetric(horizontal: 24),
                           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                           decoration: BoxDecoration(
                             color: Colors.white.withValues(alpha: 0.2),
@@ -133,6 +135,7 @@ class PhishingResultScreen extends ConsumerWidget {
                           ),
                           child: Row(
                             mainAxisSize: MainAxisSize.min,
+                            mainAxisAlignment: MainAxisAlignment.center,
                             children: [
                               Icon(
                                 isPhishing ? Icons.phishing : Icons.verified_user,
@@ -140,12 +143,15 @@ class PhishingResultScreen extends ConsumerWidget {
                                 size: 18,
                               ),
                               const SizedBox(width: 8),
-                              Text(
-                                '${result.confidenceLabel}: ${result.confidencePercentage}',
-                                style: const TextStyle(
-                                  color: Colors.white,
-                                  fontWeight: FontWeight.w600,
-                                  fontSize: 14,
+                              Flexible(
+                                child: Text(
+                                  result.confidencePercentage,
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 16,
+                                  ),
+                                  overflow: TextOverflow.ellipsis,
                                 ),
                               ),
                             ],
@@ -846,7 +852,7 @@ class PhishingResultScreen extends ConsumerWidget {
             width: double.infinity,
             margin: const EdgeInsets.only(bottom: 12),
             child: ElevatedButton.icon(
-              onPressed: () => _showReportDialog(context),
+              onPressed: () => _showReportDialog(context, result),
               icon: const Icon(Icons.flag_outlined, size: 20),
               label: const Text('Report This Link'),
               style: ElevatedButton.styleFrom(
@@ -1043,7 +1049,17 @@ class PhishingResultScreen extends ConsumerWidget {
     }
   }
 
-  void _showReportDialog(BuildContext context) {
+  void _showReportDialog(BuildContext context, PhishingResult result) {
+    // Build the content to report - include URL and indicators
+    String reportContent = '';
+    if (result.urlsAnalyzed.isNotEmpty) {
+      reportContent = result.urlsAnalyzed.map((url) => url.url).join('\n');
+    }
+    if (result.indicators.isNotEmpty) {
+      if (reportContent.isNotEmpty) reportContent += '\n\n';
+      reportContent += 'Indicators: ${result.indicators.join(', ')}';
+    }
+
     HapticFeedback.lightImpact();
     showModalBottomSheet(
       context: context,
@@ -1122,26 +1138,18 @@ class PhishingResultScreen extends ConsumerWidget {
                     child: ElevatedButton.icon(
                       onPressed: () {
                         Navigator.pop(context);
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(
-                            content: Row(
-                              children: [
-                                Icon(Icons.check_circle, color: Colors.white, size: 20),
-                                const SizedBox(width: 12),
-                                const Text('Report submitted successfully'),
-                              ],
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => CreateReportScreen(
+                              initialContent: reportContent,
+                              initialType: 'phishing',
                             ),
-                            backgroundColor: AppColors.success,
-                            behavior: SnackBarBehavior.floating,
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                            margin: const EdgeInsets.all(16),
                           ),
                         );
                       },
                       icon: const Icon(Icons.send, size: 18),
-                      label: const Text('Submit Report'),
+                      label: const Text('Create Report'),
                       style: ElevatedButton.styleFrom(
                         backgroundColor: AppColors.danger,
                         foregroundColor: Colors.white,
