@@ -380,6 +380,9 @@ describe('FeedbackService', () => {
 
   describe('getStatistics', () => {
     test('should return comprehensive statistics', async () => {
+      // Mock $queryRaw for trend data (tagged template literal)
+      prisma.$queryRaw.mockResolvedValue([]);
+
       prisma.userFeedback.groupBy
         .mockResolvedValueOnce([
           // byStatus

@@ -69,9 +69,9 @@ const createTestApp = () => {
   app.post('/api/v1/reports', requireAuth, reportController.createReport);
   app.get('/api/v1/reports', requireAuth, reportController.getUserReports);
   app.get('/api/v1/reports/:id', requireAuth, reportController.getReportById);
-  app.put('/api/v1/reports/:id/status', requireAdmin, reportController.updateReportStatus);
+  app.put('/api/v1/reports/:id/status', requireAdmin, reportController.updateReport);
   app.delete('/api/v1/reports/:id', requireAuth, reportController.deleteReport);
-  app.get('/api/v1/reports/stats/summary', requireAuth, reportController.getStatistics);
+  app.get('/api/v1/reports/stats/summary', requireAuth, reportController.getReportStatistics);
 
   // Error handler
   app.use((err, req, res, next) => {
@@ -319,7 +319,7 @@ describe('Report Integration Tests', () => {
         .set('Authorization', 'Bearer mock-jwt-token');
 
       expect(res.status).toBe(200);
-      expect(res.body.data.message).toContain('deleted');
+      expect(res.body.message).toContain('deleted');
     });
 
     it('should return 404 for non-existent report', async () => {

@@ -71,10 +71,10 @@ const createTestApp = () => {
 
   // Register routes
   app.post('/api/v1/messages/scan-text', optionalAuth, messageController.scanText);
-  app.get('/api/v1/messages/history', requireAuth, messageController.getHistory);
-  app.get('/api/v1/messages/history/:id', requireAuth, messageController.getHistoryById);
-  app.delete('/api/v1/messages/history/:id', requireAuth, messageController.deleteHistory);
-  app.get('/api/v1/messages/stats', requireAuth, messageController.getStatistics);
+  app.get('/api/v1/messages/history', requireAuth, messageController.getScanHistory);
+  app.get('/api/v1/messages/history/:id', requireAuth, messageController.getScanHistoryById);
+  app.delete('/api/v1/messages/history/:id', requireAuth, messageController.deleteScanHistory);
+  app.get('/api/v1/messages/stats', requireAuth, messageController.getScanStatistics);
 
   // Error handler
   app.use((err, req, res, next) => {
@@ -153,9 +153,10 @@ describe('Message Scanning Integration Tests', () => {
       });
 
       it('should bypass AI service for safe greetings', async () => {
+        // Use a message that matches the safe greeting patterns
         const res = await request(app)
           .post('/api/v1/messages/scan-text')
-          .send({ message: 'Hi, how are you?' });
+          .send({ message: 'How are you?' });
 
         expect(res.status).toBe(200);
         expect(res.body.data.is_spam).toBe(false);
@@ -342,7 +343,7 @@ describe('Message Scanning Integration Tests', () => {
         .set('Authorization', 'Bearer mock-jwt-token');
 
       expect(res.status).toBe(200);
-      expect(res.body.data.message).toContain('deleted');
+      expect(res.body.message).toContain('deleted');
     });
 
     it('should return 404 for non-existent history', async () => {

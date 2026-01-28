@@ -388,7 +388,8 @@ describe('MessageService', () => {
         });
         prisma.scanHistory.create.mockResolvedValue({ id: 'history-1' });
 
-        await messageService.scanTextForSpam('Spam message', 'user-123');
+        // Use a longer message to avoid short message penalty
+        await messageService.scanTextForSpam('This is a longer spam message for testing', 'user-123');
 
         expect(prisma.scanHistory.create).toHaveBeenCalledWith({
           data: expect.objectContaining({
@@ -405,9 +406,9 @@ describe('MessageService', () => {
         });
         prisma.scanHistory.create.mockRejectedValue(new Error('DB error'));
 
-        // Should not throw
+        // Should not throw - use longer message to avoid short message penalty
         const result = await messageService.scanTextForSpam(
-          'Spam message',
+          'This is a longer spam message for testing',
           'user-123'
         );
         expect(result.is_spam).toBe(true);

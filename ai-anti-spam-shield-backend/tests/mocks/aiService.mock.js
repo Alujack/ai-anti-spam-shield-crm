@@ -180,6 +180,14 @@ const checkAllMocksUsed = () => {
   return nock.isDone();
 };
 
+// Jest mock for axios (used by integration tests that mock axios directly)
+const axiosMock = {
+  post: jest.fn(),
+  get: jest.fn(),
+  create: jest.fn(() => axiosMock),
+  defaults: { headers: { common: {} } }
+};
+
 module.exports = {
   mockSpamPrediction,
   mockPhishingDetection,
@@ -190,5 +198,10 @@ module.exports = {
   mockAIServiceUnavailable,
   cleanMocks,
   checkAllMocksUsed,
-  AI_SERVICE_URL
+  AI_SERVICE_URL,
+  // Export axios mock methods for integration tests
+  post: axiosMock.post,
+  get: axiosMock.get,
+  create: axiosMock.create,
+  defaults: axiosMock.defaults
 };
