@@ -5,7 +5,7 @@ services:
   # API GATEWAY
   # ===========================================
   gateway:
-    image: kong/kong:3.4-alpine
+    image: kong/kong:3.9
     container_name: ai-shield-gateway
     environment:
       KONG_DATABASE: "off"
