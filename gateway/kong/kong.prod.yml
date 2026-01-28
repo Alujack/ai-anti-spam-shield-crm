@@ -34,6 +34,45 @@ services:
           - http
           - https
 
+  # ===========================================
+  # ThuTlai Services
+  # ===========================================
+  # ThuTlai Backend API
+  - name: thutlai-backend
+    url: http://172.17.0.1:3100
+    routes:
+      - name: thutlai-api-route
+        paths:
+          - /thutlai/api
+        strip_path: false
+      - name: thutlai-health-route
+        paths:
+          - /thutlai/health
+        strip_path: false
+      - name: thutlai-uploads-route
+        paths:
+          - /thutlai/uploads
+        strip_path: false
+
+  # ThuTlai Merchant Dashboard
+  - name: thutlai-merchant
+    url: http://172.17.0.1:3101
+    routes:
+      - name: thutlai-merchant-route
+        paths:
+          - /thutlai/merchant
+        strip_path: false
+
+  # ThuTlai Admin Dashboard
+  - name: thutlai-admin
+    url: http://172.17.0.1:3102
+    routes:
+      - name: thutlai-admin-route
+        paths:
+          - /thutlai/admin
+        strip_path: false
+
+
 # ===========================================
 # PLUGINS (Global) - Production Hardened
 # ===========================================
