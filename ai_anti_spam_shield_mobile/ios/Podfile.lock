@@ -42,12 +42,12 @@ EXTERNAL SOURCES:
 
 SPEC CHECKSUMS:
   Flutter: cabc95a1d2626b1b06e7179b784ebcf0c0cde467
-  home_widget: 0434835a4c9a75704264feff6be17ea40e0f0d57
-  path_provider_foundation: 0b743cbb62d8e47eab856f09262bb8c1ddcfe6ba
-  permission_handler_apple: 9878588469a2b0d0fc1e048d9f43605f92e6cec2
-  record_ios: 840d21cce013c5a3b2168b74a54ebdb4136359e2
-  shared_preferences_foundation: 5086985c1d43c5ba4d5e69a4e8083a389e2909e6
-  uni_links: d97da20c7701486ba192624d99bffaaffcfc298a
+  home_widget: f169fc41fd807b4d46ab6615dc44d62adbf9f64f
+  path_provider_foundation: bb55f6dbba17d0dccd6737fe6f7f34fbd0376880
+  permission_handler_apple: 4ed2196e43d0651e8ff7ca3483a069d469701f2d
+  record_ios: f75fa1d57f840012775c0e93a38a7f3ceea1a374
+  shared_preferences_foundation: 7036424c3d8ec98dfe75ff1667cb0cd531ec82bb
+  uni_links: ed8c961e47ed9ce42b6d91e1de8049e38a4b3152
 
 PODFILE CHECKSUM: e69d4027600379b9456055b43e54aa360316c1de
 

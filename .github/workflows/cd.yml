@@ -193,7 +193,7 @@ jobs:
             echo "====================================="
 
             # Navigate to project directory
-            PROJECT_DIR="/root/ai-anti-spam-shield"
+            PROJECT_DIR="/root/ai-anti-spam-shield-crm"
             cd $PROJECT_DIR || { echo "Project directory not found!"; exit 1; }
 
             # Pull latest code

@@ -649,7 +649,7 @@ class _MockActionButtons extends StatelessWidget {
   final VoidCallback? onReportTap;
   final VoidCallback? onScanAnotherTap;
 
-  const _MockActionButtons({this.onReportTap, this.onScanAnotherTap});
+  const _MockActionButtons({this.onReportTap});
 
   @override
   Widget build(BuildContext context) {
