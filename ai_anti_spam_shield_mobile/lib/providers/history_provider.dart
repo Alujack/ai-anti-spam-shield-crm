@@ -56,8 +56,8 @@ class HistoryNotifier extends Notifier<HistoryState> {
       );
 
       final historiesList = result['histories'];
-      final histories = historiesList is List<ScanHistory>
-          ? historiesList
+      final histories = (historiesList is List)
+          ? historiesList.cast<ScanHistory>()
           : <ScanHistory>[];
 
       state = state.copyWith(
