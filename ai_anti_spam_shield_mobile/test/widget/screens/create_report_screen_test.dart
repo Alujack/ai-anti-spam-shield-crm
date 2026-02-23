@@ -74,7 +74,7 @@ void main() {
       );
 
       final textField = find.byType(TextField);
-      await tester.enterText(textField, 'URGENT: Win $10,000 now!');
+      await tester.enterText(textField, 'URGENT: Win \$10,000 now!');
       await tester.pump();
 
       expect(find.text('URGENT: Win \$10,000 now!'), findsOneWidget);

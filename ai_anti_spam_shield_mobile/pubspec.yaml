@@ -70,6 +70,9 @@ dev_dependencies:
   flutter_test:
     sdk: flutter
 
+  # Riverpod core (for Override type in tests)
+  riverpod: ^3.0.3
+
   # App Icon Generator
   flutter_launcher_icons: ^0.14.3
 

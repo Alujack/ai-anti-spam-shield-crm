@@ -119,7 +119,7 @@ void main() {
         id: 'report-1',
         visitorId: 'user-1',
         type: 'spam',
-        content: 'URGENT: You won $10,000!',
+        content: 'URGENT: You won \$10,000!',
         description: 'Received this suspicious message',
         status: 'pending',
         createdAt: DateTime.now(),

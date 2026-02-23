@@ -1,15 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:riverpod/misc.dart' show Override;
 
 /// Creates a testable widget wrapped with necessary providers
 Widget createTestWidget(
   Widget child, {
-  List<ProviderOrFamily>? overrides,
+  List<Override>? overrides,
   ThemeData? theme,
 }) {
   return ProviderScope(
-    overrides: overrides?.cast<Override>() ?? [],
+    overrides: overrides ?? [],
     child: MaterialApp(
       theme: theme ?? ThemeData.light(),
       home: Scaffold(body: child),
@@ -20,12 +21,12 @@ Widget createTestWidget(
 /// Creates a full app wrapper for testing screens
 Widget createTestApp(
   Widget child, {
-  List<ProviderOrFamily>? overrides,
+  List<Override>? overrides,
   ThemeData? theme,
   String? initialRoute,
 }) {
   return ProviderScope(
-    overrides: overrides?.cast<Override>() ?? [],
+    overrides: overrides ?? [],
     child: MaterialApp(
       theme: theme ?? ThemeData.light(),
       home: child,
@@ -39,7 +40,7 @@ extension WidgetTesterExtension on WidgetTester {
   /// Pumps the widget with provider scope
   Future<void> pumpApp(
     Widget widget, {
-    List<ProviderOrFamily>? overrides,
+    List<Override>? overrides,
   }) async {
     await pumpWidget(createTestWidget(widget, overrides: overrides));
     await pump();
