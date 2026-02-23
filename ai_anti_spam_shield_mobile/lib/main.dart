@@ -13,6 +13,7 @@ import 'screens/phishing/phishing_result_screen.dart';
 import 'screens/report/create_report_screen.dart';
 import 'screens/report/my_reports_screen.dart';
 import 'screens/dashboard/dashboard_screen.dart';
+import 'screens/email/email_accounts_screen.dart';
 import 'providers/auth_provider.dart';
 import 'providers/settings_provider.dart';
 import 'services/widget_service.dart';
@@ -58,6 +59,7 @@ class MyApp extends ConsumerWidget {
         '/create-report': (context) => const CreateReportScreen(),
         '/my-reports': (context) => const MyReportsScreen(),
         '/dashboard': (context) => const DashboardScreen(),
+        '/email-scanner': (context) => const EmailAccountsScreen(),
       },
     );
   }

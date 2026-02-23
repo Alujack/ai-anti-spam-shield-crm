@@ -188,6 +188,55 @@ services:
         reservations:
           memory: 128M
 
+  email-worker:
+    build:
+      context: ./ai-anti-spam-shield-backend
+      dockerfile: Dockerfile
+    container_name: ai-shield-email-worker
+    command: ["node", "src/services/queue/workers/email.worker.js"]
+    environment:
+      NODE_ENV: production
+      WORKER_TYPE: email
+      DATABASE_URL: postgresql://aishield:${DB_PASSWORD}@postgres:5432/aishield
+      REDIS_URL: redis://redis:6379
+      AI_SERVICE_URL: http://ml-service:8000
+      ENCRYPTION_KEY: ${ENCRYPTION_KEY}
+    depends_on:
+      - backend
+    networks:
+      - ai-shield-network
+    restart: always
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+        reservations:
+          memory: 128M
+
+  email-scheduler:
+    build:
+      context: ./ai-anti-spam-shield-backend
+      dockerfile: Dockerfile
+    container_name: ai-shield-email-scheduler
+    command: ["node", "src/services/queue/workers/email.scheduler.js"]
+    environment:
+      NODE_ENV: production
+      WORKER_TYPE: email-scheduler
+      DATABASE_URL: postgresql://aishield:${DB_PASSWORD}@postgres:5432/aishield
+      REDIS_URL: redis://redis:6379
+      ENCRYPTION_KEY: ${ENCRYPTION_KEY}
+    depends_on:
+      - backend
+    networks:
+      - ai-shield-network
+    restart: always
+    deploy:
+      resources:
+        limits:
+          memory: 128M
+        reservations:
+          memory: 64M
+
   # ===========================================
   # ML SERVICE (FastAPI)
   # ===========================================

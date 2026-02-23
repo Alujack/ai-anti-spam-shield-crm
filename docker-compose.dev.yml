@@ -27,6 +27,12 @@ services:
   url-worker:
     profiles:
       - workers
+  email-worker:
+    profiles:
+      - workers
+  email-scheduler:
+    profiles:
+      - workers
 
   # Disable gateway in dev (direct backend access)
   gateway:

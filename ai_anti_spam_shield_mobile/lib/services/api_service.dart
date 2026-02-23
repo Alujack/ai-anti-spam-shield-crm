@@ -8,6 +8,8 @@ import '../models/report.dart';
 import '../models/statistics.dart';
 import '../models/feedback.dart';
 import '../models/domain_intel.dart';
+import '../models/email_account.dart';
+import '../models/email_scan_result.dart';
 import '../utils/constants.dart';
 import 'storage_service.dart';
 import 'mock_api_service.dart';
@@ -847,6 +849,218 @@ class ApiService {
     try {
       final response = await _dio.get('/intel/domain/$domain');
       return DomainIntel.fromJson(response.data['data']);
+    } catch (e) {
+      rethrow;
+    }
+  }
+
+  // ============================================
+  // EMAIL SCANNING ENDPOINTS
+  // ============================================
+
+  /// Connect an email account
+  Future<EmailAccount> connectEmailAccount({
+    required String email,
+    required String password,
+    required String provider,
+    String? imapHost,
+    int? imapPort,
+  }) async {
+    if (_isDemoMode) {
+      return EmailAccount(
+        id: 'demo_email_${DateTime.now().millisecondsSinceEpoch}',
+        email: email,
+        provider: provider,
+        imapHost: imapHost ?? 'imap.gmail.com',
+        imapPort: imapPort ?? 993,
+        isActive: true,
+        autoScanInterval: 0,
+        totalScanned: 0,
+        totalFlagged: 0,
+        createdAt: DateTime.now(),
+      );
+    }
+    try {
+      final response = await _dio.post('/emails/connect', data: {
+        'email': email,
+        'password': password,
+        'provider': provider,
+        if (imapHost != null) 'imapHost': imapHost,
+        if (imapPort != null) 'imapPort': imapPort,
+      });
+      return EmailAccount.fromJson(response.data['data']);
+    } catch (e) {
+      rethrow;
+    }
+  }
+
+  /// Get connected email accounts
+  Future<List<EmailAccount>> getEmailAccounts() async {
+    if (_isDemoMode) {
+      return [];
+    }
+    try {
+      final response = await _dio.get('/emails/accounts');
+      return (response.data['data'] as List)
+          .map((json) => EmailAccount.fromJson(json))
+          .toList();
+    } catch (e) {
+      rethrow;
+    }
+  }
+
+  /// Get email account by ID
+  Future<EmailAccount> getEmailAccountById(String id) async {
+    if (_isDemoMode) {
+      throw Exception('Not available in demo mode');
+    }
+    try {
+      final response = await _dio.get('/emails/accounts/$id');
+      return EmailAccount.fromJson(response.data['data']);
+    } catch (e) {
+      rethrow;
+    }
+  }
+
+  /// Disconnect an email account
+  Future<void> disconnectEmailAccount(String id) async {
+    if (_isDemoMode) return;
+    try {
+      await _dio.delete('/emails/accounts/$id');
+    } catch (e) {
+      rethrow;
+    }
+  }
+
+  /// Update email account settings
+  Future<EmailAccount> updateEmailAccountSettings(
+    String id, {
+    int? autoScanInterval,
+    bool? isActive,
+  }) async {
+    if (_isDemoMode) {
+      throw Exception('Not available in demo mode');
+    }
+    try {
+      final response = await _dio.put('/emails/accounts/$id/settings', data: {
+        if (autoScanInterval != null) 'autoScanInterval': autoScanInterval,
+        if (isActive != null) 'isActive': isActive,
+      });
+      return EmailAccount.fromJson(response.data['data']);
+    } catch (e) {
+      rethrow;
+    }
+  }
+
+  /// Trigger a manual email scan
+  Future<Map<String, dynamic>> triggerEmailScan(String accountId) async {
+    if (_isDemoMode) {
+      return {'scannedCount': 5, 'flaggedCount': 2};
+    }
+    try {
+      final response = await _dio.post('/emails/accounts/$accountId/scan');
+      return response.data['data'];
+    } catch (e) {
+      rethrow;
+    }
+  }
+
+  /// Get email scan results
+  Future<Map<String, dynamic>> getEmailScanResults(
+    String accountId, {
+    int page = 1,
+    int limit = 20,
+    bool flaggedOnly = false,
+  }) async {
+    if (_isDemoMode) {
+      return {'results': <EmailScanResult>[], 'pagination': {'page': 1, 'limit': 20, 'total': 0, 'totalPages': 0}};
+    }
+    try {
+      final response = await _dio.get(
+        '/emails/accounts/$accountId/results',
+        queryParameters: {
+          'page': page,
+          'limit': limit,
+          if (flaggedOnly) 'flaggedOnly': true,
+        },
+      );
+      final data = response.data['data'];
+      return {
+        'results': (data['results'] as List)
+            .map((json) => EmailScanResult.fromJson(json))
+            .toList(),
+        'pagination': data['pagination'],
+      };
+    } catch (e) {
+      rethrow;
+    }
+  }
+
+  /// Get flagged emails
+  Future<Map<String, dynamic>> getFlaggedEmails(
+    String accountId, {
+    int page = 1,
+    int limit = 20,
+  }) async {
+    if (_isDemoMode) {
+      return {'results': <EmailScanResult>[], 'pagination': {'page': 1, 'limit': 20, 'total': 0, 'totalPages': 0}};
+    }
+    try {
+      final response = await _dio.get(
+        '/emails/accounts/$accountId/flagged',
+        queryParameters: {
+          'page': page,
+          'limit': limit,
+        },
+      );
+      final data = response.data['data'];
+      return {
+        'results': (data['results'] as List)
+            .map((json) => EmailScanResult.fromJson(json))
+            .toList(),
+        'pagination': data['pagination'],
+      };
+    } catch (e) {
+      rethrow;
+    }
+  }
+
+  /// Clean flagged emails (move to trash)
+  Future<Map<String, dynamic>> cleanFlaggedEmails(
+    String accountId, {
+    List<String>? emailIds,
+  }) async {
+    if (_isDemoMode) {
+      return {'cleanedCount': 0, 'message': 'Demo mode'};
+    }
+    try {
+      final response = await _dio.post('/emails/accounts/$accountId/clean', data: {
+        if (emailIds != null) 'emailIds': emailIds,
+      });
+      return response.data['data'];
+    } catch (e) {
+      rethrow;
+    }
+  }
+
+  /// Get email scan statistics
+  Future<EmailScanStatistics> getEmailStatistics() async {
+    if (_isDemoMode) {
+      return EmailScanStatistics(
+        totalAccounts: 0,
+        activeAccounts: 0,
+        totalScanned: 0,
+        totalFlagged: 0,
+        totalCleaned: 0,
+        pendingClean: 0,
+        spamCount: 0,
+        phishingCount: 0,
+        flagRate: 0,
+      );
+    }
+    try {
+      final response = await _dio.get('/emails/statistics');
+      return EmailScanStatistics.fromJson(response.data['data']);
     } catch (e) {
       rethrow;
     }

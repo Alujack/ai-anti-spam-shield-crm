@@ -7,6 +7,7 @@ const QUEUES = {
   TEXT_SCAN: 'text-scan',
   VOICE_SCAN: 'voice-scan',
   URL_SCAN: 'url-scan',
+  EMAIL_SCAN: 'email-scan',
   FEEDBACK: 'feedback-processing',
   RETRAINING: 'model-retraining',
 };
@@ -42,6 +43,11 @@ const queueConfigs = {
   [QUEUES.URL_SCAN]: {
     ...defaultJobOptions,
     priority: 1,
+  },
+  [QUEUES.EMAIL_SCAN]: {
+    ...defaultJobOptions,
+    priority: 2,
+    attempts: 2,      // Email scanning is IO-heavy, fewer retries
   },
   [QUEUES.FEEDBACK]: {
     ...defaultJobOptions,

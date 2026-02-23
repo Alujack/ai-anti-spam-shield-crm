@@ -528,6 +528,21 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           children: [
             Expanded(
               child: _buildActionCard(
+                icon: Icons.email_outlined,
+                title: 'Email Scan',
+                subtitle: 'Auto-scan',
+                gradient: const LinearGradient(
+                  colors: [Color(0xFF10B981), Color(0xFF059669)],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
+                isDark: isDark,
+                onTap: () => Navigator.pushNamed(context, '/email-scanner'),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: _buildActionCard(
                 icon: Icons.link,
                 title: 'URL Check',
                 subtitle: 'Verify links',
@@ -553,21 +568,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                 ),
                 isDark: isDark,
                 onTap: () => Navigator.pushNamed(context, '/dashboard'),
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: _buildActionCard(
-                icon: Icons.flag_outlined,
-                title: 'Reports',
-                subtitle: 'My reports',
-                gradient: const LinearGradient(
-                  colors: [Color(0xFFF59E0B), Color(0xFFD97706)],
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                ),
-                isDark: isDark,
-                onTap: () => Navigator.pushNamed(context, '/my-reports'),
               ),
             ),
           ],
