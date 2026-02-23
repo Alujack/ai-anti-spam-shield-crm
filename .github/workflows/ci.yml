@@ -278,13 +278,15 @@ jobs:
         # EDUCATIONAL NOTE: gha cache uses GitHub Actions cache
         # This makes subsequent builds much faster
 
-      # Build ML service image
-      - name: Build ML Service Image
+      # Build ML service image WITHOUT training (fast - just verify it builds)
+      # Training is only done during CD deployment
+      - name: Build ML Service Image (no training)
         uses: docker/build-push-action@v5
         with:
           context: ./ai-anti-spam-shield-service-model
           push: false
           tags: ai-shield-ml-service:test
+          build-args: TRAIN_MODELS=false
           cache-from: type=gha
           cache-to: type=gha,mode=max
 

@@ -26,15 +26,28 @@ COPY app/ .
 # Create model directory
 RUN mkdir -p model models model/trained_models
 
+# Build argument to control whether to train models
+# Set to "true" to train during build (CD deployment)
+# Set to "false" to skip training (CI builds, quick rebuilds)
+ARG TRAIN_MODELS=true
+
 # Train the spam classifier model during build
 # This downloads datasets from HuggingFace and trains the model
-RUN echo "Training spam classifier model..." && \
-    python model/train.py --unified && \
-    echo "Model training completed!"
+RUN if [ "$TRAIN_MODELS" = "true" ]; then \
+      echo "Training spam classifier model..." && \
+      python model/train.py --unified && \
+      echo "Model training completed!"; \
+    else \
+      echo "Skipping model training (TRAIN_MODELS=false)"; \
+    fi
 
 # Train the phishing detector model
-RUN echo "Training phishing detector model..." && \
-    python model/train_phishing.py || echo "Phishing model training skipped (optional)"
+RUN if [ "$TRAIN_MODELS" = "true" ]; then \
+      echo "Training phishing detector model..." && \
+      (python model/train_phishing.py || echo "Phishing model training skipped (optional)"); \
+    else \
+      echo "Skipping phishing model training (TRAIN_MODELS=false)"; \
+    fi
 
 # Copy entrypoint script
 COPY entrypoint.sh /entrypoint.sh

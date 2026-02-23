@@ -169,6 +169,8 @@ services:
     build:
       context: ./ai-anti-spam-shield-service-model
       dockerfile: Dockerfile
+      args:
+        TRAIN_MODELS: ${TRAIN_MODELS:-true}
     container_name: ai-shield-ml-service
     environment:
       MODEL_DIR: /app/model

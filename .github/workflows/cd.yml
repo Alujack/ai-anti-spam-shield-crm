@@ -79,10 +79,36 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 2  # Need previous commit to detect changes
 
       - name: Set variables
         id: vars
         run: echo "short_sha=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
+
+      # Detect which files changed to decide what to build
+      # EDUCATIONAL NOTE: This avoids rebuilding ML image (with training)
+      # when only backend or mobile code changed
+      - name: Detect changes
+        id: changes
+        run: |
+          # Check if ML service files changed
+          if git diff --name-only HEAD~1 HEAD | grep -q "^ai-anti-spam-shield-service-model/"; then
+            echo "ml_changed=true" >> $GITHUB_OUTPUT
+            echo "ML service files changed - will rebuild with training"
+          else
+            echo "ml_changed=false" >> $GITHUB_OUTPUT
+            echo "No ML changes - skipping ML rebuild"
+          fi
+
+          # Check if backend files changed
+          if git diff --name-only HEAD~1 HEAD | grep -q "^ai-anti-spam-shield-backend/"; then
+            echo "backend_changed=true" >> $GITHUB_OUTPUT
+            echo "Backend files changed - will rebuild"
+          else
+            echo "backend_changed=false" >> $GITHUB_OUTPUT
+            echo "No backend changes - skipping backend rebuild"
+          fi
 
       # Login to GitHub Container Registry
       # EDUCATIONAL NOTE: GITHUB_TOKEN is automatically provided by GitHub
@@ -101,6 +127,7 @@ jobs:
       #   ghcr.io/username/repo/backend:abc1234
       #   ghcr.io/username/repo/backend:latest
       - name: Extract metadata for Backend
+        if: steps.changes.outputs.backend_changed == 'true'
         id: meta-backend
         uses: docker/metadata-action@v5
         with:
@@ -110,6 +137,7 @@ jobs:
             type=raw,value=latest
 
       - name: Extract metadata for ML Service
+        if: steps.changes.outputs.ml_changed == 'true'
         id: meta-ml
         uses: docker/metadata-action@v5
         with:
@@ -118,8 +146,9 @@ jobs:
             type=sha,prefix=
             type=raw,value=latest
 
-      # Build and push Backend image
+      # Build and push Backend image (only if backend files changed)
       - name: Build and Push Backend
+        if: steps.changes.outputs.backend_changed == 'true'
         uses: docker/build-push-action@v5
         with:
           context: ./ai-anti-spam-shield-backend
@@ -131,24 +160,39 @@ jobs:
           # EDUCATIONAL NOTE: Layer caching dramatically speeds up builds
           # Only changed layers are rebuilt
 
-      # Build and push ML Service image
+      # Build and push ML Service image WITH training (only if ML files changed)
+      # EDUCATIONAL NOTE: Training is expensive so we only do it when ML code changes
+      # The TRAIN_MODELS=true arg triggers model training during Docker build
       - name: Build and Push ML Service
+        if: steps.changes.outputs.ml_changed == 'true'
         uses: docker/build-push-action@v5
         with:
           context: ./ai-anti-spam-shield-service-model
           push: true
           tags: ${{ steps.meta-ml.outputs.tags }}
           labels: ${{ steps.meta-ml.outputs.labels }}
+          build-args: TRAIN_MODELS=true
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-      - name: Print image tags
+      - name: Print build summary
         run: |
           echo "====================================="
-          echo "      DOCKER IMAGES PUSHED           "
+          echo "        BUILD SUMMARY                "
           echo "====================================="
-          echo "Backend: ${{ steps.meta-backend.outputs.tags }}"
-          echo "ML Service: ${{ steps.meta-ml.outputs.tags }}"
+          echo "Backend changed: ${{ steps.changes.outputs.backend_changed }}"
+          echo "ML changed:      ${{ steps.changes.outputs.ml_changed }}"
+          echo ""
+          if [ "${{ steps.changes.outputs.backend_changed }}" = "true" ]; then
+            echo "Backend: ${{ steps.meta-backend.outputs.tags }}"
+          else
+            echo "Backend: skipped (no changes, using existing latest)"
+          fi
+          if [ "${{ steps.changes.outputs.ml_changed }}" = "true" ]; then
+            echo "ML Service: ${{ steps.meta-ml.outputs.tags }}"
+          else
+            echo "ML Service: skipped (no changes, using existing latest)"
+          fi
           echo "====================================="
 
   # ============================================================
