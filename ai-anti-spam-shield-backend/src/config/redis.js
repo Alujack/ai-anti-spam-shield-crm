@@ -1,13 +1,30 @@
 const Redis = require('ioredis');
 const logger = require('../utils/logger');
 
+// Parse REDIS_URL upfront if provided (e.g. redis://redis:6379)
+const parseUrl = (url) => {
+  try {
+    const parsed = new URL(url);
+    return {
+      host: parsed.hostname,
+      port: parseInt(parsed.port) || 6379,
+      password: parsed.password || undefined,
+      db: parseInt(parsed.pathname?.slice(1)) || 0,
+    };
+  } catch {
+    return {};
+  }
+};
+
+const urlConfig = process.env.REDIS_URL ? parseUrl(process.env.REDIS_URL) : {};
+
 // Redis connection configuration
 // Note: maxRetriesPerRequest must be null for BullMQ compatibility
 const redisConfig = {
-  host: process.env.REDIS_HOST || 'localhost',
-  port: parseInt(process.env.REDIS_PORT) || 6379,
-  password: process.env.REDIS_PASSWORD || undefined,
-  db: parseInt(process.env.REDIS_DB) || 0,
+  host: urlConfig.host || process.env.REDIS_HOST || 'localhost',
+  port: urlConfig.port || parseInt(process.env.REDIS_PORT) || 6379,
+  password: urlConfig.password || process.env.REDIS_PASSWORD || undefined,
+  db: urlConfig.db || parseInt(process.env.REDIS_DB) || 0,
   maxRetriesPerRequest: null,
   retryDelayOnFailover: 100,
   enableReadyCheck: true,

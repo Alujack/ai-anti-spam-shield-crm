@@ -44,7 +44,6 @@ services:
   # NODE.JS BACKEND
   # ===========================================
   backend:
-    image: ghcr.io/alujack/ai-anti-spam-shield-crm/backend:latest
     build:
       context: ../../ai-anti-spam-shield-backend
       dockerfile: Dockerfile
@@ -87,7 +86,6 @@ services:
   # SINGLE UNIFIED WORKER (saves memory)
   # ===========================================
   worker:
-    image: ghcr.io/alujack/ai-anti-spam-shield-crm/backend:latest
     build:
       context: ../../ai-anti-spam-shield-backend
       dockerfile: Dockerfile
@@ -118,7 +116,6 @@ services:
   # Models are trained during Docker build
   # ===========================================
   ml-service:
-    image: ghcr.io/alujack/ai-anti-spam-shield-crm/ml-service:latest
     build:
       context: ../../ai-anti-spam-shield-service-model
       dockerfile: Dockerfile
