@@ -260,3 +260,156 @@ model EmailScanResult {
   @@index([scannedAt])
   @@map("email_scan_results")
 }
+
+// ===========================================
+// THREAT MODEL (Scope 9)
+// ===========================================
+model Threat {
+  id              String    @id @default(uuid())
+  threatType      String    // SPAM, PHISHING, MALWARE, INTRUSION, BRUTE_FORCE, DDoS, DATA_EXFILTRATION, OTHER
+  severity        String    // LOW, MEDIUM, HIGH, CRITICAL
+  status          String    @default("DETECTED") // DETECTED, INVESTIGATING, CONTAINED, RESOLVED, FALSE_POSITIVE
+  source          String?   // file_scanner, network_monitor, behavior_analyzer, ml_model, playbook
+  confidenceScore Float     @default(0)
+  title           String?
+  description     String?
+  metadata        Json?
+  detectedAt      DateTime  @default(now())
+  resolvedAt      DateTime?
+  resolvedBy      String?
+  resolution      String?
+
+  incidents       Incident[]
+  fileScan        FileScan?  @relation(fields: [fileScanId], references: [id])
+  fileScanId      String?
+
+  @@index([threatType])
+  @@index([severity])
+  @@index([status])
+  @@index([detectedAt])
+  @@map("threats")
+}
+
+// ===========================================
+// INCIDENT MODEL (Scope 10)
+// ===========================================
+model Incident {
+  id          String    @id @default(uuid())
+  title       String
+  description String?
+  severity    String    // LOW, MEDIUM, HIGH, CRITICAL
+  status      String    @default("OPEN") // OPEN, INVESTIGATING, CONTAINED, RESOLVED, CLOSED
+  threatId    String?
+  userId      String?
+  assignedTo  String?
+  notes       String?
+  resolution  String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  resolvedAt  DateTime?
+  closedAt    DateTime?
+
+  threat      Threat?   @relation(fields: [threatId], references: [id])
+
+  @@index([status])
+  @@index([severity])
+  @@index([threatId])
+  @@index([createdAt])
+  @@map("incidents")
+}
+
+// ===========================================
+// ALERT MODEL (Scope 11)
+// ===========================================
+model Alert {
+  id             String    @id @default(uuid())
+  title          String
+  description    String?
+  severity       String    // LOW, MEDIUM, HIGH, CRITICAL
+  category       String    // THREAT_DETECTED, INTRUSION_ATTEMPT, MALWARE_FOUND, SUSPICIOUS_ACTIVITY, SYSTEM_ERROR, DATA_BREACH, POLICY_VIOLATION
+  source         String?
+  status         String    @default("ACTIVE") // ACTIVE, ACKNOWLEDGED, RESOLVED
+  metadata       Json?
+  createdAt      DateTime  @default(now())
+  acknowledgedAt DateTime?
+  acknowledgedBy String?
+  resolvedAt     DateTime?
+  resolvedBy     String?
+  resolution     String?
+
+  @@index([status])
+  @@index([severity])
+  @@index([category])
+  @@index([createdAt])
+  @@map("alerts")
+}
+
+// ===========================================
+// NETWORK EVENT MODEL (Scope 14)
+// ===========================================
+model NetworkEvent {
+  id           String   @id @default(uuid())
+  eventType    String   // HTTP_REQUEST, SCAN_ACTIVITY, AUTH_ATTEMPT, SUSPICIOUS_PATTERN
+  sourceIp     String
+  targetIp     String?
+  protocol     String?  // HTTP, HTTPS
+  method       String?  // GET, POST, PUT, DELETE
+  path         String?
+  statusCode   Int?
+  userAgent    String?
+  userId       String?
+  isSuspicious Boolean  @default(false)
+  riskScore    Float    @default(0)
+  metadata     Json?
+  createdAt    DateTime @default(now())
+
+  @@index([sourceIp])
+  @@index([isSuspicious])
+  @@index([eventType])
+  @@index([createdAt])
+  @@map("network_events")
+}
+
+// ===========================================
+// BEHAVIOR LOG MODEL (Scope 16)
+// ===========================================
+model BehaviorLog {
+  id         String   @id @default(uuid())
+  userId     String
+  action     String   // SCAN, LOGIN, REPORT, FILE_UPLOAD, API_CALL, PASSWORD_CHANGE
+  riskScore  Float    @default(0)
+  isAnomaly  Boolean  @default(false)
+  details    Json?
+  ipAddress  String?
+  createdAt  DateTime @default(now())
+
+  @@index([userId])
+  @@index([action])
+  @@index([isAnomaly])
+  @@index([createdAt])
+  @@map("behavior_logs")
+}
+
+// ===========================================
+// FILE SCAN MODEL (Scope 15)
+// ===========================================
+model FileScan {
+  id               String   @id @default(uuid())
+  fileHash         String
+  fileName         String
+  fileType         String?
+  fileSize         BigInt
+  scanResult       String   // CLEAN, SUSPICIOUS, MALICIOUS
+  riskScore        Float    @default(0)
+  scanDetails      Json?
+  virusTotalResult Json?
+  userId           String?
+  scannedAt        DateTime @default(now())
+
+  threats          Threat[]
+
+  @@index([fileHash])
+  @@index([scanResult])
+  @@index([scannedAt])
+  @@map("file_scans")
+}

@@ -1,68 +1,90 @@
+const prisma = require('../../config/database');
+const { setMonitoringEnabled, isMonitoringEnabled } = require('../../middlewares/networkLogger');
+
 /**
  * Network Monitoring Service
- * Monitors network traffic for threats
+ * Monitors network traffic via HTTP request logging (Scope 14)
  */
 
 class NetworkMonitor {
-    constructor() {
-        this.isMonitoring = false;
-        this.events = [];
-    }
-    
     async startMonitoring() {
-        this.isMonitoring = true;
+        setMonitoringEnabled(true);
         console.log('Network monitoring started');
-        
-        // Start packet capture (placeholder)
-        // In production, integrate with tools like:
-        // - node-pcap
-        // - cap
-        // - Python service with scapy
-        
         return { success: true, message: 'Monitoring started' };
     }
-    
+
     async stopMonitoring() {
-        this.isMonitoring = false;
+        setMonitoringEnabled(false);
         console.log('Network monitoring stopped');
         return { success: true, message: 'Monitoring stopped' };
     }
-    
+
+    getStatus() {
+        return {
+            isMonitoring: isMonitoringEnabled(),
+            startedAt: isMonitoringEnabled() ? new Date() : null
+        };
+    }
+
     async getEvents(filters = {}) {
-        // Return network events
-        return {
-            events: this.events,
-            total: this.events.length,
-            suspicious: this.events.filter(e => e.isSuspicious).length
-        };
+        const where = {};
+        if (filters.isSuspicious !== undefined) {
+            where.isSuspicious = filters.isSuspicious === 'true' || filters.isSuspicious === true;
+        }
+        if (filters.eventType) where.eventType = filters.eventType;
+        if (filters.sourceIp) where.sourceIp = filters.sourceIp;
+        if (filters.startDate || filters.endDate) {
+            where.createdAt = {};
+            if (filters.startDate) where.createdAt.gte = new Date(filters.startDate);
+            if (filters.endDate) where.createdAt.lte = new Date(filters.endDate);
+        }
+
+        const page = parseInt(filters.page) || 1;
+        const limit = parseInt(filters.limit) || 50;
+
+        const [events, total, suspicious] = await Promise.all([
+            prisma.networkEvent.findMany({
+                where,
+                orderBy: { createdAt: 'desc' },
+                skip: (page - 1) * limit,
+                take: limit
+            }),
+            prisma.networkEvent.count({ where }),
+            prisma.networkEvent.count({ where: { ...where, isSuspicious: true } })
+        ]);
+
+        return { events, total, suspicious };
     }
-    
+
     async getStatistics() {
-        return {
-            totalEvents: this.events.length,
-            suspiciousEvents: this.events.filter(e => e.isSuspicious).length,
-            protocols: this.getProtocolDistribution(),
-            topSources: this.getTopSources()
-        };
-    }
-    
-    getProtocolDistribution() {
+        const [totalEvents, suspiciousEvents, byEventType, byProtocol, topSources] = await Promise.all([
+            prisma.networkEvent.count(),
+            prisma.networkEvent.count({ where: { isSuspicious: true } }),
+            prisma.networkEvent.groupBy({ by: ['eventType'], _count: { eventType: true } }),
+            prisma.networkEvent.groupBy({ by: ['protocol'], _count: { protocol: true } }),
+            prisma.$queryRaw`
+                SELECT "sourceIp" as ip, COUNT(*)::int as count
+                FROM network_events
+                GROUP BY "sourceIp"
+                ORDER BY count DESC
+                LIMIT 10
+            `
+        ]);
+
         const protocols = {};
-        this.events.forEach(event => {
-            protocols[event.protocol] = (protocols[event.protocol] || 0) + 1;
-        });
-        return protocols;
-    }
-    
-    getTopSources() {
-        const sources = {};
-        this.events.forEach(event => {
-            sources[event.sourceIp] = (sources[event.sourceIp] || 0) + 1;
-        });
-        return Object.entries(sources)
-            .sort((a, b) => b[1] - a[1])
-            .slice(0, 10)
-            .map(([ip, count]) => ({ ip, count }));
+        byProtocol.forEach(p => { if (p.protocol) protocols[p.protocol] = p._count.protocol; });
+
+        const eventTypes = {};
+        byEventType.forEach(e => { eventTypes[e.eventType] = e._count.eventType; });
+
+        return {
+            totalEvents,
+            suspiciousEvents,
+            protocols,
+            eventTypes,
+            topSources: topSources || [],
+            isMonitoring: isMonitoringEnabled()
+        };
     }
 }
 

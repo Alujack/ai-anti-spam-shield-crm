@@ -1,17 +1,16 @@
 const EventEmitter = require('events');
+const prisma = require('../../config/database');
 
 /**
  * Alerting Service
- * Manages security alerts and notifications
+ * Manages security alerts and notifications with database persistence
  */
 
 class AlertingService extends EventEmitter {
     constructor() {
         super();
-        this.alerts = [];
-        this.maxAlerts = 1000; // Keep last 1000 alerts in memory
         this.subscribers = new Map();
-        
+
         // Alert severity levels
         this.SEVERITY = {
             LOW: 'LOW',
@@ -35,9 +34,6 @@ class AlertingService extends EventEmitter {
         this.setupEventListeners();
     }
 
-    /**
-     * Setup internal event listeners
-     */
     setupEventListeners() {
         this.on('alert', (alert) => {
             console.log(`[ALERT] ${alert.severity} - ${alert.title}`);
@@ -46,7 +42,7 @@ class AlertingService extends EventEmitter {
     }
 
     /**
-     * Create and trigger a new alert
+     * Create and trigger a new alert (persisted to DB)
      */
     createAlert({
         title,
@@ -56,205 +52,175 @@ class AlertingService extends EventEmitter {
         source,
         metadata = {},
         autoResolve = false,
-        resolveAfter = 3600000 // 1 hour default
+        resolveAfter = 3600000
     }) {
-        const alert = {
-            id: `alert-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-            title,
+        const alertData = {
+            title: title || 'Untitled Alert',
             description,
             severity,
-            category,
+            category: category || 'SUSPICIOUS_ACTIVITY',
             source,
-            metadata,
+            metadata: metadata || {},
             status: 'ACTIVE',
-            createdAt: new Date(),
-            resolvedAt: null,
-            acknowledgedAt: null,
-            acknowledgedBy: null
+            createdAt: new Date()
         };
 
-        // Add to alerts array
-        this.alerts.unshift(alert);
+        // Persist to database (fire-and-forget to keep method sync-compatible)
+        prisma.alert.create({ data: alertData }).then(dbAlert => {
+            alertData.id = dbAlert.id;
 
-        // Maintain max alerts limit
-        if (this.alerts.length > this.maxAlerts) {
-            this.alerts = this.alerts.slice(0, this.maxAlerts);
-        }
+            // Emit alert event
+            this.emit('alert', alertData);
 
-        // Emit alert event
-        this.emit('alert', alert);
+            // Auto-resolve if configured
+            if (autoResolve) {
+                setTimeout(() => {
+                    this.resolveAlert(dbAlert.id, 'system', 'Auto-resolved after timeout');
+                }, resolveAfter);
+            }
+        }).catch(err => {
+            console.error('Failed to persist alert:', err.message);
+            // Still emit the event even if DB fails
+            alertData.id = `alert-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+            this.emit('alert', alertData);
+        });
 
-        // Auto-resolve if configured
-        if (autoResolve) {
-            setTimeout(() => {
-                this.resolveAlert(alert.id, 'system', 'Auto-resolved after timeout');
-            }, resolveAfter);
-        }
-
-        // TODO: Save to database
-        // await prisma.alert.create({ data: alert });
-
-        return alert;
+        return alertData;
     }
 
     /**
      * Create threat detection alert
      */
-    alertThreatDetected({
-        threatType,
-        severity,
-        confidence,
-        source,
-        details
-    }) {
+    alertThreatDetected({ threatType, severity, confidence, source, details }) {
         return this.createAlert({
             title: `${threatType} Threat Detected`,
             description: `A ${threatType.toLowerCase()} threat was detected with ${(confidence * 100).toFixed(1)}% confidence.`,
             severity,
             category: this.CATEGORY.THREAT_DETECTED,
             source,
-            metadata: {
-                threatType,
-                confidence,
-                details
-            }
+            metadata: { threatType, confidence, details }
         });
     }
 
     /**
      * Create malware detection alert
      */
-    alertMalwareFound({
-        fileName,
-        fileHash,
-        severity,
-        scanResult,
-        virusTotalScore
-    }) {
+    alertMalwareFound({ fileName, fileHash, severity, scanResult, virusTotalScore }) {
         return this.createAlert({
             title: 'Malware Detected',
             description: `File "${fileName}" was flagged as malicious.`,
-            severity,
+            severity: severity || this.SEVERITY.HIGH,
             category: this.CATEGORY.MALWARE_FOUND,
             source: 'file_scanner',
-            metadata: {
-                fileName,
-                fileHash,
-                scanResult,
-                virusTotalScore
-            }
+            metadata: { fileName, fileHash, scanResult, virusTotalScore }
         });
     }
 
     /**
      * Create intrusion attempt alert
      */
-    alertIntrusionAttempt({
-        sourceIp,
-        attackType,
-        severity,
-        details
-    }) {
+    alertIntrusionAttempt({ sourceIp, attackType, severity, details }) {
         return this.createAlert({
-            title: `${attackType} Intrusion Attempt`,
+            title: `${attackType || 'Network'} Intrusion Attempt`,
             description: `Intrusion attempt detected from IP ${sourceIp}`,
-            severity,
+            severity: severity || this.SEVERITY.HIGH,
             category: this.CATEGORY.INTRUSION_ATTEMPT,
             source: 'network_monitor',
-            metadata: {
-                sourceIp,
-                attackType,
-                details
-            }
+            metadata: { sourceIp, attackType, details }
         });
     }
 
     /**
      * Create suspicious activity alert
      */
-    alertSuspiciousActivity({
-        userId,
-        activity,
-        riskScore,
-        details
-    }) {
+    alertSuspiciousActivity({ userId, activity, riskScore, details }) {
         return this.createAlert({
             title: 'Suspicious User Activity',
             description: `Unusual activity detected for user ${userId}`,
             severity: riskScore > 0.7 ? this.SEVERITY.HIGH : this.SEVERITY.MEDIUM,
             category: this.CATEGORY.SUSPICIOUS_ACTIVITY,
             source: 'behavior_analyzer',
-            metadata: {
-                userId,
-                activity,
-                riskScore,
-                details
-            }
+            metadata: { userId, activity, riskScore, details }
         });
     }
 
     /**
-     * Get active alerts
+     * Get active alerts from database
      */
-    getActiveAlerts(filters = {}) {
-        let filtered = this.alerts.filter(a => a.status === 'ACTIVE');
+    async getActiveAlerts(filters = {}) {
+        const where = { status: 'ACTIVE' };
+        if (filters.severity) where.severity = filters.severity;
+        if (filters.category) where.category = filters.category;
+        if (filters.source) where.source = filters.source;
 
-        if (filters.severity) {
-            filtered = filtered.filter(a => a.severity === filters.severity);
-        }
+        return prisma.alert.findMany({
+            where,
+            orderBy: { createdAt: 'desc' },
+            take: 100
+        });
+    }
 
-        if (filters.category) {
-            filtered = filtered.filter(a => a.category === filters.category);
-        }
+    /**
+     * Get all alerts with optional filters
+     */
+    async getAllAlerts(filters = {}) {
+        const where = {};
+        if (filters.status) where.status = filters.status;
+        if (filters.severity) where.severity = filters.severity;
+        if (filters.category) where.category = filters.category;
 
-        if (filters.source) {
-            filtered = filtered.filter(a => a.source === filters.source);
-        }
-
-        return filtered;
+        return prisma.alert.findMany({
+            where,
+            orderBy: { createdAt: 'desc' },
+            take: 200
+        });
     }
 
     /**
      * Get alert by ID
      */
-    getAlertById(alertId) {
-        return this.alerts.find(a => a.id === alertId);
+    async getAlertById(alertId) {
+        return prisma.alert.findUnique({ where: { id: alertId } });
     }
 
     /**
      * Acknowledge alert
      */
-    acknowledgeAlert(alertId, userId) {
-        const alert = this.alerts.find(a => a.id === alertId);
-        
-        if (alert) {
-            alert.acknowledgedAt = new Date();
-            alert.acknowledgedBy = userId;
-            
+    async acknowledgeAlert(alertId, userId) {
+        try {
+            const alert = await prisma.alert.update({
+                where: { id: alertId },
+                data: {
+                    acknowledgedAt: new Date(),
+                    acknowledgedBy: userId
+                }
+            });
             this.emit('alert_acknowledged', alert);
             return alert;
+        } catch (err) {
+            return null;
         }
-        
-        return null;
     }
 
     /**
      * Resolve alert
      */
-    resolveAlert(alertId, userId, resolution) {
-        const alert = this.alerts.find(a => a.id === alertId);
-        
-        if (alert) {
-            alert.status = 'RESOLVED';
-            alert.resolvedAt = new Date();
-            alert.resolvedBy = userId;
-            alert.resolution = resolution;
-            
+    async resolveAlert(alertId, userId, resolution) {
+        try {
+            const alert = await prisma.alert.update({
+                where: { id: alertId },
+                data: {
+                    status: 'RESOLVED',
+                    resolvedAt: new Date(),
+                    resolvedBy: userId,
+                    resolution
+                }
+            });
             this.emit('alert_resolved', alert);
             return alert;
+        } catch (err) {
+            return null;
         }
-        
-        return null;
     }
 
     /**
@@ -265,16 +231,10 @@ class AlertingService extends EventEmitter {
         return () => this.unsubscribe(subscriberId);
     }
 
-    /**
-     * Unsubscribe from alerts
-     */
     unsubscribe(subscriberId) {
         return this.subscribers.delete(subscriberId);
     }
 
-    /**
-     * Notify all subscribers of new alert
-     */
     notifySubscribers(alert) {
         this.subscribers.forEach((callback, subscriberId) => {
             try {
@@ -286,95 +246,44 @@ class AlertingService extends EventEmitter {
     }
 
     /**
-     * Get alert statistics
+     * Get alert statistics from database
      */
-    getStatistics() {
-        const activeAlerts = this.alerts.filter(a => a.status === 'ACTIVE');
-        
+    async getStatistics() {
+        const [total, active, resolved, bySeverity, byCategory, recent] = await Promise.all([
+            prisma.alert.count(),
+            prisma.alert.count({ where: { status: 'ACTIVE' } }),
+            prisma.alert.count({ where: { status: 'RESOLVED' } }),
+            prisma.alert.groupBy({ by: ['severity'], _count: { severity: true } }),
+            prisma.alert.groupBy({ by: ['category'], _count: { category: true } }),
+            prisma.alert.findMany({ orderBy: { createdAt: 'desc' }, take: 10 })
+        ]);
+
+        const severityMap = { low: 0, medium: 0, high: 0, critical: 0 };
+        bySeverity.forEach(s => { severityMap[s.severity.toLowerCase()] = s._count.severity; });
+
+        const categoryMap = {};
+        byCategory.forEach(c => { categoryMap[c.category.toLowerCase()] = c._count.category; });
+
         return {
-            total: this.alerts.length,
-            active: activeAlerts.length,
-            resolved: this.alerts.filter(a => a.status === 'RESOLVED').length,
-            bySeverity: {
-                low: this.alerts.filter(a => a.severity === this.SEVERITY.LOW).length,
-                medium: this.alerts.filter(a => a.severity === this.SEVERITY.MEDIUM).length,
-                high: this.alerts.filter(a => a.severity === this.SEVERITY.HIGH).length,
-                critical: this.alerts.filter(a => a.severity === this.SEVERITY.CRITICAL).length
-            },
-            byCategory: this.getCategoryStats(),
-            recent: this.alerts.slice(0, 10)
+            total,
+            active,
+            resolved,
+            bySeverity: severityMap,
+            byCategory: categoryMap,
+            recent
         };
     }
 
     /**
-     * Get category statistics
+     * Clear resolved alerts from database
      */
-    getCategoryStats() {
-        const stats = {};
-        
-        Object.values(this.CATEGORY).forEach(category => {
-            stats[category.toLowerCase()] = this.alerts.filter(a => a.category === category).length;
-        });
-        
-        return stats;
-    }
-
-    /**
-     * Clear resolved alerts
-     */
-    clearResolvedAlerts() {
-        const beforeCount = this.alerts.length;
-        this.alerts = this.alerts.filter(a => a.status === 'ACTIVE');
-        const cleared = beforeCount - this.alerts.length;
-        
+    async clearResolvedAlerts() {
+        const result = await prisma.alert.deleteMany({ where: { status: 'RESOLVED' } });
         return {
-            message: `Cleared ${cleared} resolved alerts`,
-            remaining: this.alerts.length
-        };
-    }
-
-    /**
-     * Send email notification (placeholder)
-     */
-    async sendEmailNotification(alert, recipients) {
-        // TODO: Integrate with email service (SendGrid, AWS SES, etc.)
-        console.log(`Email notification would be sent to: ${recipients.join(', ')}`);
-        console.log(`Alert: ${alert.title}`);
-        
-        return {
-            sent: false,
-            message: 'Email service not configured'
-        };
-    }
-
-    /**
-     * Send SMS notification (placeholder)
-     */
-    async sendSMSNotification(alert, phoneNumbers) {
-        // TODO: Integrate with SMS service (Twilio, AWS SNS, etc.)
-        console.log(`SMS notification would be sent to: ${phoneNumbers.join(', ')}`);
-        console.log(`Alert: ${alert.title}`);
-        
-        return {
-            sent: false,
-            message: 'SMS service not configured'
-        };
-    }
-
-    /**
-     * Send webhook notification (placeholder)
-     */
-    async sendWebhookNotification(alert, webhookUrl) {
-        // TODO: Send HTTP POST to webhook URL
-        console.log(`Webhook notification would be sent to: ${webhookUrl}`);
-        console.log(`Alert: ${alert.title}`);
-        
-        return {
-            sent: false,
-            message: 'Webhook not implemented'
+            message: `Cleared ${result.count} resolved alerts`,
+            cleared: result.count
         };
     }
 }
 
 module.exports = new AlertingService();
-

@@ -57,13 +57,15 @@ router.post('/stop', authMiddleware, async (req, res) => {
  */
 router.get('/events', authMiddleware, async (req, res) => {
     try {
-        const { suspicious, limit = 100 } = req.query;
-        const filters = {};
-        
-        if (suspicious !== undefined) {
-            filters.suspicious = suspicious === 'true';
-        }
-        
+        const { suspicious, limit = 100, eventType, sourceIp, startDate, endDate, page } = req.query;
+        const filters = { limit, page };
+
+        if (suspicious !== undefined) filters.isSuspicious = suspicious;
+        if (eventType) filters.eventType = eventType;
+        if (sourceIp) filters.sourceIp = sourceIp;
+        if (startDate) filters.startDate = startDate;
+        if (endDate) filters.endDate = endDate;
+
         const events = await networkMonitor.getEvents(filters);
         
         res.status(200).json({
@@ -106,12 +108,10 @@ router.get('/statistics', authMiddleware, async (req, res) => {
  */
 router.get('/status', authMiddleware, async (req, res) => {
     try {
+        const status = networkMonitor.getStatus();
         res.status(200).json({
             success: true,
-            data: {
-                isMonitoring: networkMonitor.isMonitoring,
-                eventsCount: networkMonitor.events.length
-            }
+            data: status
         });
     } catch (error) {
         res.status(500).json({

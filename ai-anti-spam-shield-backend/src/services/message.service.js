@@ -3,6 +3,7 @@ const config = require('../config');
 const prisma = require('../config/database');
 const ApiError = require('../utils/apiError');
 const logger = require('../utils/logger');
+const behaviorService = require('./behavior/behaviorService');
 
 /**
  * Message Service
@@ -600,6 +601,9 @@ class MessageService {
       });
 
       logger.info('Scan history saved', { historyId: history.id, userId, scanType });
+
+      // Log behavior for analysis
+      behaviorService.logAction(userId, 'SCAN', { scanType, isSpam: scanResult.is_spam });
 
       return history;
     } catch (error) {

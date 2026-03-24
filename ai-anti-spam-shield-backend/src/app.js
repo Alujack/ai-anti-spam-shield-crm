@@ -8,6 +8,7 @@ const swaggerSpec = require('./config/swagger');
 const config = require('./config');
 const routes = require('./routes');
 const { errorHandler, notFoundHandler } = require('./middlewares/errorHandler');
+const { networkLoggerMiddleware } = require('./middlewares/networkLogger');
 const logger = require('./utils/logger');
 const { initWebSocket } = require('./websocket');
 const { initRedis, closeRedis } = require('./config/redis');
@@ -71,6 +72,9 @@ app.get('/health', async (req, res) => {
 
   res.status(200).json(health);
 });
+
+// Network monitoring middleware (Scope 14)
+app.use(networkLoggerMiddleware);
 
 // API routes
 app.use(`/api/${config.apiVersion}`, routes);

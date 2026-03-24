@@ -1,39 +1,31 @@
 const express = require('express');
 const router = express.Router();
 const authMiddleware = require('../../middlewares/auth');
+const prisma = require('../../config/database');
 
 /**
  * Incident Management Routes
- * Handles security incident tracking and response
  */
 
-/**
- * @desc    Create new incident
- * @route   POST /api/v1/incidents
- * @access  Private
- */
+// POST /api/v1/incidents
 router.post('/', authMiddleware, async (req, res) => {
     try {
         const { title, description, severity, threatId } = req.body;
 
         if (!title || !severity) {
-            return res.status(400).json({
-                success: false,
-                message: 'Title and severity are required'
-            });
+            return res.status(400).json({ success: false, message: 'Title and severity are required' });
         }
 
-        // TODO: Create incident in database
-        const incident = {
-            id: 'incident-' + Date.now(),
+        const data = {
             title,
             description,
             severity,
             status: 'OPEN',
-            threatId,
-            userId: req.user?.id,
-            createdAt: new Date()
+            userId: req.user?.id
         };
+        if (threatId) data.threatId = threatId;
+
+        const incident = await prisma.incident.create({ data });
 
         res.status(201).json({
             success: true,
@@ -41,25 +33,30 @@ router.post('/', authMiddleware, async (req, res) => {
             data: incident
         });
     } catch (error) {
-        res.status(500).json({
-            success: false,
-            message: error.message
-        });
+        res.status(500).json({ success: false, message: error.message });
     }
 });
 
-/**
- * @desc    Get all incidents
- * @route   GET /api/v1/incidents
- * @access  Private
- */
+// GET /api/v1/incidents
 router.get('/', authMiddleware, async (req, res) => {
     try {
         const { status, severity, page = 1, limit = 20 } = req.query;
 
-        // TODO: Fetch from database with filters
-        const incidents = [];
-        const total = 0;
+        const where = {};
+        if (status) where.status = status;
+        if (severity) where.severity = severity;
+
+        const skip = (parseInt(page) - 1) * parseInt(limit);
+        const [incidents, total] = await Promise.all([
+            prisma.incident.findMany({
+                where,
+                skip,
+                take: parseInt(limit),
+                orderBy: { createdAt: 'desc' },
+                include: { threat: true }
+            }),
+            prisma.incident.count({ where })
+        ]);
 
         res.status(200).json({
             success: true,
@@ -69,65 +66,53 @@ router.get('/', authMiddleware, async (req, res) => {
                     page: parseInt(page),
                     limit: parseInt(limit),
                     total,
-                    pages: Math.ceil(total / limit)
+                    pages: Math.ceil(total / parseInt(limit))
                 }
             }
         });
     } catch (error) {
-        res.status(500).json({
-            success: false,
-            message: error.message
-        });
+        res.status(500).json({ success: false, message: error.message });
     }
 });
 
-/**
- * @desc    Get incident by ID
- * @route   GET /api/v1/incidents/:id
- * @access  Private
- */
+// GET /api/v1/incidents/:id
 router.get('/:id', authMiddleware, async (req, res) => {
     try {
-        const { id } = req.params;
-
-        // TODO: Fetch from database
-        const incident = {
-            id,
-            title: 'Sample Incident',
-            status: 'OPEN',
-            severity: 'HIGH',
-            createdAt: new Date()
-        };
-
-        res.status(200).json({
-            success: true,
-            data: incident
+        const incident = await prisma.incident.findUnique({
+            where: { id: req.params.id },
+            include: { threat: true }
         });
+
+        if (!incident) {
+            return res.status(404).json({ success: false, message: 'Incident not found' });
+        }
+
+        res.status(200).json({ success: true, data: incident });
     } catch (error) {
-        res.status(500).json({
-            success: false,
-            message: error.message
-        });
+        res.status(500).json({ success: false, message: error.message });
     }
 });
 
-/**
- * @desc    Update incident
- * @route   PUT /api/v1/incidents/:id
- * @access  Private
- */
+// PUT /api/v1/incidents/:id
 router.put('/:id', authMiddleware, async (req, res) => {
     try {
-        const { id } = req.params;
         const { status, assignedTo, notes } = req.body;
 
-        // TODO: Update in database
-        const updatedIncident = {
-            id,
-            status,
-            assignedTo,
-            updatedAt: new Date()
-        };
+        const incident = await prisma.incident.findUnique({ where: { id: req.params.id } });
+        if (!incident) {
+            return res.status(404).json({ success: false, message: 'Incident not found' });
+        }
+
+        const data = {};
+        if (status) data.status = status;
+        if (assignedTo) data.assignedTo = assignedTo;
+        if (notes) data.notes = notes;
+        if (status === 'RESOLVED') data.resolvedAt = new Date();
+
+        const updatedIncident = await prisma.incident.update({
+            where: { id: req.params.id },
+            data
+        });
 
         res.status(200).json({
             success: true,
@@ -135,30 +120,28 @@ router.put('/:id', authMiddleware, async (req, res) => {
             data: updatedIncident
         });
     } catch (error) {
-        res.status(500).json({
-            success: false,
-            message: error.message
-        });
+        res.status(500).json({ success: false, message: error.message });
     }
 });
 
-/**
- * @desc    Close incident
- * @route   POST /api/v1/incidents/:id/close
- * @access  Private
- */
+// POST /api/v1/incidents/:id/close
 router.post('/:id/close', authMiddleware, async (req, res) => {
     try {
-        const { id } = req.params;
         const { resolution } = req.body;
 
-        // TODO: Update in database
-        const closedIncident = {
-            id,
-            status: 'CLOSED',
-            resolvedAt: new Date(),
-            resolution
-        };
+        const incident = await prisma.incident.findUnique({ where: { id: req.params.id } });
+        if (!incident) {
+            return res.status(404).json({ success: false, message: 'Incident not found' });
+        }
+
+        const closedIncident = await prisma.incident.update({
+            where: { id: req.params.id },
+            data: {
+                status: 'CLOSED',
+                closedAt: new Date(),
+                resolution
+            }
+        });
 
         res.status(200).json({
             success: true,
@@ -166,12 +149,8 @@ router.post('/:id/close', authMiddleware, async (req, res) => {
             data: closedIncident
         });
     } catch (error) {
-        res.status(500).json({
-            success: false,
-            message: error.message
-        });
+        res.status(500).json({ success: false, message: error.message });
     }
 });
 
 module.exports = router;
-

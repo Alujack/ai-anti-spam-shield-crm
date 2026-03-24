@@ -1,103 +1,57 @@
 const express = require('express');
 const router = express.Router();
 const authMiddleware = require('../../middlewares/auth');
+const behaviorService = require('../../services/behavior/behaviorService');
 
 /**
- * Behavior Analysis Routes
- * Handles user behavior analysis and anomaly detection
+ * Behavior Analysis Routes (Scope 16)
  */
 
-/**
- * @desc    Analyze user behavior
- * @route   POST /api/v1/behavior/analyze
- * @access  Private
- */
+// POST /api/v1/behavior/analyze
 router.post('/analyze', authMiddleware, async (req, res) => {
     try {
-        const { userId, actions, timeframe } = req.body;
+        const { userId, timeframe = '24h' } = req.body;
+        const targetUserId = userId || req.user?.id;
 
-        // TODO: Implement behavior analysis logic
-        // This would analyze user actions for suspicious patterns
-        
-        const analysis = {
-            userId,
-            riskScore: 0.1,
-            anomalies: [],
-            patterns: {
-                loginFrequency: 'normal',
-                dataAccessPatterns: 'normal',
-                timeBasedPatterns: 'normal'
-            },
-            analyzedAt: new Date()
-        };
+        const analysis = await behaviorService.analyzeUser(targetUserId, timeframe);
 
-        res.status(200).json({
-            success: true,
-            data: analysis
-        });
+        res.status(200).json({ success: true, data: analysis });
     } catch (error) {
-        res.status(500).json({
-            success: false,
-            message: error.message
-        });
+        res.status(500).json({ success: false, message: error.message });
     }
 });
 
-/**
- * @desc    Get behavior history
- * @route   GET /api/v1/behavior/history/:userId
- * @access  Private
- */
+// GET /api/v1/behavior/history/:userId
 router.get('/history/:userId', authMiddleware, async (req, res) => {
     try {
         const { userId } = req.params;
         const { startDate, endDate, limit = 50 } = req.query;
 
-        // TODO: Fetch from database
-        const history = [];
+        const history = await behaviorService.getHistory(userId, startDate, endDate, limit);
 
         res.status(200).json({
             success: true,
-            data: {
-                userId,
-                history,
-                total: history.length
-            }
+            data: { userId, history, total: history.length }
         });
     } catch (error) {
-        res.status(500).json({
-            success: false,
-            message: error.message
-        });
+        res.status(500).json({ success: false, message: error.message });
     }
 });
 
-/**
- * @desc    Get behavior anomalies
- * @route   GET /api/v1/behavior/anomalies
- * @access  Private
- */
+// GET /api/v1/behavior/anomalies
 router.get('/anomalies', authMiddleware, async (req, res) => {
     try {
-        const { severity, resolved, limit = 20 } = req.query;
+        const { severity, userId, limit = 20 } = req.query;
 
-        // TODO: Fetch anomalies from database
-        const anomalies = [];
+        const anomalies = await behaviorService.getAnomalies({ severity, userId, limit });
 
         res.status(200).json({
             success: true,
-            data: {
-                anomalies,
-                total: anomalies.length
-            }
+            data: { anomalies, total: anomalies.length }
         });
     } catch (error) {
-        res.status(500).json({
-            success: false,
-            message: error.message
-        });
+        res.status(500).json({ success: false, message: error.message });
     }
 });
 
 module.exports = router;
-

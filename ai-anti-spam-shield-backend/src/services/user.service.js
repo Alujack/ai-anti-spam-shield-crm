@@ -2,6 +2,7 @@ const prisma = require('../config/database');
 const { hashPassword, comparePassword, generateToken, generateRefreshToken } = require('../utils/auth');
 const ApiError = require('../utils/apiError');
 const logger = require('../utils/logger');
+const behaviorService = require('./behavior/behaviorService');
 
 /**
  * User Service
@@ -85,6 +86,9 @@ class UserService {
     const refreshToken = generateRefreshToken({ userId: user.id });
 
     logger.info('User logged in successfully', { userId: user.id, email: user.email });
+
+    // Log behavior for analysis
+    behaviorService.logAction(user.id, 'LOGIN', { email: user.email });
 
     return {
       user: {
