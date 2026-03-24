@@ -1,12 +1,22 @@
 const Stripe = require('stripe');
 const logger = require('../utils/logger');
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
+const stripe = process.env.STRIPE_SECRET_KEY
+  ? new Stripe(process.env.STRIPE_SECRET_KEY)
+  : null;
+
+if (!stripe) {
+  logger.warn('Stripe: STRIPE_SECRET_KEY not set — subscription features disabled');
+}
 
 /**
  * Create a Stripe Checkout session for subscription
  */
 const createCheckoutSession = async ({ plan, billing, successUrl, cancelUrl, customerEmail }) => {
+  if (!stripe) {
+    throw new Error('Stripe is not configured. Please set STRIPE_SECRET_KEY.');
+  }
+
   const priceId = getPriceId(plan, billing);
   if (!priceId) {
     throw new Error(`Invalid plan: ${plan}`);
@@ -52,6 +62,9 @@ const getPriceId = (plan, billing = 'monthly') => {
  * Handle Stripe webhook event
  */
 const handleWebhookEvent = async (rawBody, signature) => {
+  if (!stripe) {
+    throw new Error('Stripe is not configured.');
+  }
   const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
   const event = stripe.webhooks.constructEvent(rawBody, signature, webhookSecret);
 
