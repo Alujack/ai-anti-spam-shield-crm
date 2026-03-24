@@ -572,6 +572,55 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             ),
           ],
         ),
+        const SizedBox(height: 12),
+        Row(
+          children: [
+            Expanded(
+              child: _buildActionCard(
+                icon: Icons.shield_outlined,
+                title: 'Threats',
+                subtitle: 'Manage',
+                gradient: const LinearGradient(
+                  colors: [Color(0xFFEF4444), Color(0xFFDC2626)],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
+                isDark: isDark,
+                onTap: () => Navigator.pushNamed(context, '/threats'),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: _buildActionCard(
+                icon: Icons.notifications_outlined,
+                title: 'Alerts',
+                subtitle: 'Monitor',
+                gradient: const LinearGradient(
+                  colors: [Color(0xFFF59E0B), Color(0xFFD97706)],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
+                isDark: isDark,
+                onTap: () => Navigator.pushNamed(context, '/alerts'),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: _buildActionCard(
+                icon: Icons.dashboard_outlined,
+                title: 'Security',
+                subtitle: 'Dashboard',
+                gradient: const LinearGradient(
+                  colors: [Color(0xFF6366F1), Color(0xFF4F46E5)],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
+                isDark: isDark,
+                onTap: () => Navigator.pushNamed(context, '/advanced-dashboard'),
+              ),
+            ),
+          ],
+        ),
       ],
     );
   }

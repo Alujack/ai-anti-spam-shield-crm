@@ -1066,6 +1066,363 @@ class ApiService {
     }
   }
 
+  // ============================================
+  // SCOPE 9: THREAT MANAGEMENT
+  // ============================================
+
+  Future<Map<String, dynamic>> getThreats({int page = 1, int limit = 20, String? threatType, String? severity, String? status}) async {
+    if (_isDemoMode) return {'threats': [], 'pagination': {'page': 1, 'limit': 20, 'total': 0, 'pages': 0}};
+    try {
+      final response = await _dio.get('/threats', queryParameters: {
+        'page': page, 'limit': limit,
+        if (threatType != null) 'threatType': threatType,
+        if (severity != null) 'severity': severity,
+        if (status != null) 'status': status,
+      });
+      return response.data['data'];
+    } catch (e) { rethrow; }
+  }
+
+  Future<Map<String, dynamic>> getThreatById(String id) async {
+    if (_isDemoMode) return {};
+    try {
+      final response = await _dio.get('/threats/$id');
+      return response.data['data'];
+    } catch (e) { rethrow; }
+  }
+
+  Future<Map<String, dynamic>> resolveThreat(String id, {String? resolution}) async {
+    if (_isDemoMode) return {'status': 'RESOLVED'};
+    try {
+      final response = await _dio.post('/threats/$id/resolve', data: {
+        if (resolution != null) 'resolution': resolution,
+      });
+      return response.data['data'];
+    } catch (e) { rethrow; }
+  }
+
+  Future<Map<String, dynamic>> getThreatStatistics() async {
+    if (_isDemoMode) return {'total': 0, 'byType': {}, 'bySeverity': {}, 'byStatus': {}};
+    try {
+      final response = await _dio.get('/threats/statistics');
+      return response.data['data'];
+    } catch (e) { rethrow; }
+  }
+
+  // ============================================
+  // SCOPE 10: INCIDENT MANAGEMENT
+  // ============================================
+
+  Future<Map<String, dynamic>> createIncident({required String title, required String severity, String? description, String? threatId}) async {
+    if (_isDemoMode) return {'id': 'demo', 'title': title, 'status': 'OPEN'};
+    try {
+      final response = await _dio.post('/incidents', data: {
+        'title': title, 'severity': severity,
+        if (description != null) 'description': description,
+        if (threatId != null) 'threatId': threatId,
+      });
+      return response.data['data'];
+    } catch (e) { rethrow; }
+  }
+
+  Future<Map<String, dynamic>> getIncidents({int page = 1, int limit = 20, String? status, String? severity}) async {
+    if (_isDemoMode) return {'incidents': [], 'pagination': {'page': 1, 'limit': 20, 'total': 0, 'pages': 0}};
+    try {
+      final response = await _dio.get('/incidents', queryParameters: {
+        'page': page, 'limit': limit,
+        if (status != null) 'status': status,
+        if (severity != null) 'severity': severity,
+      });
+      return response.data['data'];
+    } catch (e) { rethrow; }
+  }
+
+  Future<Map<String, dynamic>> getIncidentById(String id) async {
+    if (_isDemoMode) return {};
+    try {
+      final response = await _dio.get('/incidents/$id');
+      return response.data['data'];
+    } catch (e) { rethrow; }
+  }
+
+  Future<Map<String, dynamic>> updateIncident(String id, {String? status, String? assignedTo, String? notes}) async {
+    if (_isDemoMode) return {'id': id, 'status': status};
+    try {
+      final response = await _dio.put('/incidents/$id', data: {
+        if (status != null) 'status': status,
+        if (assignedTo != null) 'assignedTo': assignedTo,
+        if (notes != null) 'notes': notes,
+      });
+      return response.data['data'];
+    } catch (e) { rethrow; }
+  }
+
+  Future<Map<String, dynamic>> closeIncident(String id, {String? resolution}) async {
+    if (_isDemoMode) return {'id': id, 'status': 'CLOSED'};
+    try {
+      final response = await _dio.post('/incidents/$id/close', data: {
+        if (resolution != null) 'resolution': resolution,
+      });
+      return response.data['data'];
+    } catch (e) { rethrow; }
+  }
+
+  // ============================================
+  // SCOPE 11: ALERT SYSTEM
+  // ============================================
+
+  Future<Map<String, dynamic>> getAlerts({String? status, String? severity, String? category}) async {
+    if (_isDemoMode) return {'alerts': [], 'total': 0};
+    try {
+      final response = await _dio.get('/alerts', queryParameters: {
+        if (status != null) 'status': status,
+        if (severity != null) 'severity': severity,
+        if (category != null) 'category': category,
+      });
+      return response.data['data'];
+    } catch (e) { rethrow; }
+  }
+
+  Future<Map<String, dynamic>> getAlertById(String id) async {
+    if (_isDemoMode) return {};
+    try {
+      final response = await _dio.get('/alerts/$id');
+      return response.data['data'];
+    } catch (e) { rethrow; }
+  }
+
+  Future<Map<String, dynamic>> acknowledgeAlert(String id) async {
+    if (_isDemoMode) return {'id': id};
+    try {
+      final response = await _dio.post('/alerts/$id/acknowledge');
+      return response.data['data'];
+    } catch (e) { rethrow; }
+  }
+
+  Future<Map<String, dynamic>> resolveAlert(String id, {String? resolution}) async {
+    if (_isDemoMode) return {'id': id, 'status': 'RESOLVED'};
+    try {
+      final response = await _dio.post('/alerts/$id/resolve', data: {
+        if (resolution != null) 'resolution': resolution,
+      });
+      return response.data['data'];
+    } catch (e) { rethrow; }
+  }
+
+  Future<Map<String, dynamic>> getAlertStatistics() async {
+    if (_isDemoMode) return {'total': 0, 'active': 0, 'resolved': 0};
+    try {
+      final response = await _dio.get('/alerts/statistics/summary');
+      return response.data['data'];
+    } catch (e) { rethrow; }
+  }
+
+  // ============================================
+  // SCOPE 12: THREAT INTELLIGENCE
+  // ============================================
+
+  Future<Map<String, dynamic>> checkIpReputation(String ip) async {
+    if (_isDemoMode) return {'ip': ip, 'abuseScore': 0, 'isSuspicious': false};
+    try {
+      final response = await _dio.post('/threat-intel/ip', data: {'ip': ip});
+      return response.data['data'];
+    } catch (e) { rethrow; }
+  }
+
+  Future<Map<String, dynamic>> checkFileHash(String fileHash) async {
+    if (_isDemoMode) return {'fileHash': fileHash, 'isMalicious': false};
+    try {
+      final response = await _dio.post('/threat-intel/file-hash', data: {'fileHash': fileHash});
+      return response.data['data'];
+    } catch (e) { rethrow; }
+  }
+
+  Future<Map<String, dynamic>> checkUrlReputation(String url) async {
+    if (_isDemoMode) return {'url': url, 'isMalicious': false};
+    try {
+      final response = await _dio.post('/threat-intel/url', data: {'url': url});
+      return response.data['data'];
+    } catch (e) { rethrow; }
+  }
+
+  // ============================================
+  // SCOPE 13: PLAYBOOK / INCIDENT RESPONSE
+  // ============================================
+
+  Future<List<dynamic>> getPlaybooks() async {
+    if (_isDemoMode) return [];
+    try {
+      final response = await _dio.get('/playbooks');
+      return response.data['data'] ?? [];
+    } catch (e) { rethrow; }
+  }
+
+  Future<Map<String, dynamic>> getPlaybookById(String id) async {
+    if (_isDemoMode) return {};
+    try {
+      final response = await _dio.get('/playbooks/$id');
+      return response.data['data'];
+    } catch (e) { rethrow; }
+  }
+
+  Future<Map<String, dynamic>> executePlaybook(String id, {required String threatId, required String threatType, required String severity}) async {
+    if (_isDemoMode) return {'success': true};
+    try {
+      final response = await _dio.post('/playbooks/$id/execute', data: {
+        'threat': {'id': threatId, 'threatType': threatType, 'severity': severity},
+      });
+      return response.data['data'] ?? response.data;
+    } catch (e) { rethrow; }
+  }
+
+  Future<Map<String, dynamic>> togglePlaybook(String id) async {
+    if (_isDemoMode) return {'enabled': true};
+    try {
+      final response = await _dio.post('/playbooks/$id/toggle');
+      return response.data['data'];
+    } catch (e) { rethrow; }
+  }
+
+  Future<Map<String, dynamic>> getPlaybookStatistics() async {
+    if (_isDemoMode) return {'totalPlaybooks': 0, 'totalExecutions': 0};
+    try {
+      final response = await _dio.get('/playbooks/executions/statistics');
+      return response.data['data'];
+    } catch (e) { rethrow; }
+  }
+
+  // ============================================
+  // SCOPE 14: NETWORK MONITORING
+  // ============================================
+
+  Future<Map<String, dynamic>> startNetworkMonitoring() async {
+    if (_isDemoMode) return {'success': true, 'message': 'Started'};
+    try {
+      final response = await _dio.post('/network/start');
+      return response.data['data'];
+    } catch (e) { rethrow; }
+  }
+
+  Future<Map<String, dynamic>> stopNetworkMonitoring() async {
+    if (_isDemoMode) return {'success': true, 'message': 'Stopped'};
+    try {
+      final response = await _dio.post('/network/stop');
+      return response.data['data'];
+    } catch (e) { rethrow; }
+  }
+
+  Future<Map<String, dynamic>> getNetworkEvents({bool? suspicious, String? eventType, int page = 1, int limit = 50}) async {
+    if (_isDemoMode) return {'events': [], 'total': 0, 'suspicious': 0};
+    try {
+      final response = await _dio.get('/network/events', queryParameters: {
+        'page': page, 'limit': limit,
+        if (suspicious != null) 'suspicious': suspicious,
+        if (eventType != null) 'eventType': eventType,
+      });
+      return response.data['data'];
+    } catch (e) { rethrow; }
+  }
+
+  Future<Map<String, dynamic>> getNetworkStatistics() async {
+    if (_isDemoMode) return {'totalEvents': 0, 'suspiciousEvents': 0, 'isMonitoring': false};
+    try {
+      final response = await _dio.get('/network/statistics');
+      return response.data['data'];
+    } catch (e) { rethrow; }
+  }
+
+  Future<Map<String, dynamic>> getNetworkStatus() async {
+    if (_isDemoMode) return {'isMonitoring': false};
+    try {
+      final response = await _dio.get('/network/status');
+      return response.data['data'];
+    } catch (e) { rethrow; }
+  }
+
+  // ============================================
+  // SCOPE 15: FILE SCANNING
+  // ============================================
+
+  Future<Map<String, dynamic>> scanFile(String filePath) async {
+    if (_isDemoMode) return {'scanResult': 'CLEAN', 'riskScore': 0.0};
+    try {
+      final filename = filePath.split('/').last;
+      final formData = FormData.fromMap({
+        'file': await MultipartFile.fromFile(filePath, filename: filename),
+      });
+      final response = await _dio.post('/files/scan', data: formData,
+        options: Options(contentType: 'multipart/form-data'));
+      return response.data['data'];
+    } catch (e) { rethrow; }
+  }
+
+  Future<Map<String, dynamic>> getFileScanResult(String id) async {
+    if (_isDemoMode) return {};
+    try {
+      final response = await _dio.get('/files/scan/$id');
+      return response.data['data'];
+    } catch (e) { rethrow; }
+  }
+
+  Future<Map<String, dynamic>> getFileStatistics() async {
+    if (_isDemoMode) return {'totalScans': 0, 'cleanFiles': 0, 'maliciousFiles': 0};
+    try {
+      final response = await _dio.get('/files/statistics');
+      return response.data['data'];
+    } catch (e) { rethrow; }
+  }
+
+  // ============================================
+  // SCOPE 16: BEHAVIOR ANALYSIS
+  // ============================================
+
+  Future<Map<String, dynamic>> analyzeBehavior({String? userId, String timeframe = '24h'}) async {
+    if (_isDemoMode) return {'riskScore': 0.1, 'anomalies': [], 'patterns': {}};
+    try {
+      final response = await _dio.post('/behavior/analyze', data: {
+        if (userId != null) 'userId': userId,
+        'timeframe': timeframe,
+      });
+      return response.data['data'];
+    } catch (e) { rethrow; }
+  }
+
+  Future<Map<String, dynamic>> getBehaviorHistory(String userId, {int limit = 50}) async {
+    if (_isDemoMode) return {'history': [], 'total': 0};
+    try {
+      final response = await _dio.get('/behavior/history/$userId', queryParameters: {'limit': limit});
+      return response.data['data'];
+    } catch (e) { rethrow; }
+  }
+
+  Future<Map<String, dynamic>> getBehaviorAnomalies({int limit = 20}) async {
+    if (_isDemoMode) return {'anomalies': [], 'total': 0};
+    try {
+      final response = await _dio.get('/behavior/anomalies', queryParameters: {'limit': limit});
+      return response.data['data'];
+    } catch (e) { rethrow; }
+  }
+
+  // ============================================
+  // SCOPE 8: ADVANCED ANALYTICS
+  // ============================================
+
+  Future<Map<String, dynamic>> getAdvancedDashboard({String timeframe = '7d'}) async {
+    if (_isDemoMode) return {'overview': {}, 'severityDistribution': {}, 'topThreats': [], 'recentActivity': []};
+    try {
+      final response = await _dio.get('/analytics/dashboard', queryParameters: {'timeframe': timeframe});
+      return response.data['data'];
+    } catch (e) { rethrow; }
+  }
+
+  Future<Map<String, dynamic>> exportAnalytics({String format = 'json', String dataType = 'threats'}) async {
+    if (_isDemoMode) return {'rows': [], 'count': 0};
+    try {
+      final response = await _dio.get('/analytics/export', queryParameters: {'format': format, 'dataType': dataType});
+      return response.data['data'] ?? response.data;
+    } catch (e) { rethrow; }
+  }
+
   // Error handling helper
   String getErrorMessage(dynamic error) {
     if (error is DioException) {

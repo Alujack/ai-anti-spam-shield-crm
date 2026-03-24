@@ -14,6 +14,14 @@ import 'screens/report/create_report_screen.dart';
 import 'screens/report/my_reports_screen.dart';
 import 'screens/dashboard/dashboard_screen.dart';
 import 'screens/email/email_accounts_screen.dart';
+import 'screens/threats/threats_screen.dart';
+import 'screens/incidents/incidents_screen.dart';
+import 'screens/alerts/alerts_screen.dart';
+import 'screens/playbooks/playbooks_screen.dart';
+import 'screens/network/network_screen.dart';
+import 'screens/file_scan/file_scan_screen.dart';
+import 'screens/behavior/behavior_screen.dart';
+import 'screens/advanced_dashboard/advanced_dashboard_screen.dart';
 import 'providers/auth_provider.dart';
 import 'providers/settings_provider.dart';
 import 'services/widget_service.dart';
@@ -60,6 +68,14 @@ class MyApp extends ConsumerWidget {
         '/my-reports': (context) => const MyReportsScreen(),
         '/dashboard': (context) => const DashboardScreen(),
         '/email-scanner': (context) => const EmailAccountsScreen(),
+        '/threats': (context) => const ThreatsScreen(),
+        '/incidents': (context) => const IncidentsScreen(),
+        '/alerts': (context) => const AlertsScreen(),
+        '/playbooks': (context) => const PlaybooksScreen(),
+        '/network': (context) => const NetworkScreen(),
+        '/file-scan': (context) => const FileScanScreen(),
+        '/behavior': (context) => const BehaviorScreen(),
+        '/advanced-dashboard': (context) => const AdvancedDashboardScreen(),
       },
     );
   }
