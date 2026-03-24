@@ -3,6 +3,7 @@ const cors = require('cors');
 const helmet = require('helmet');
 const morgan = require('morgan');
 const http = require('http');
+const path = require('path');
 const swaggerUi = require('swagger-ui-express');
 const swaggerSpec = require('./config/swagger');
 const config = require('./config');
@@ -24,6 +25,10 @@ app.use(helmet());
 
 // CORS configuration
 app.use(cors(config.cors));
+
+// Stripe webhook needs raw body BEFORE json parsing
+const subscriptionController = require('./controllers/subscription.controller');
+app.post('/api/v1/subscriptions/webhook', express.raw({ type: 'application/json' }), subscriptionController.handleWebhook);
 
 // Body parsing middleware
 app.use(express.json());
@@ -78,6 +83,19 @@ app.use(networkLoggerMiddleware);
 
 // API routes
 app.use(`/api/${config.apiVersion}`, routes);
+
+// Serve landing page static files
+const landingPagePath = path.join(__dirname, '..', 'public', 'landing-page');
+app.use(express.static(landingPagePath));
+app.get('/', (req, res) => {
+  res.sendFile(path.join(landingPagePath, 'index.html'));
+});
+app.get('/success.html', (req, res) => {
+  res.sendFile(path.join(landingPagePath, 'success.html'));
+});
+app.get('/cancel.html', (req, res) => {
+  res.sendFile(path.join(landingPagePath, 'cancel.html'));
+});
 
 // Error handling
 app.use(notFoundHandler);

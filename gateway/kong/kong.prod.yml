@@ -21,6 +21,10 @@ services:
         paths:
           - /health
         strip_path: false
+      - name: landing-page-route
+        paths:
+          - /
+        strip_path: false
 
   # WebSocket Service
   - name: websocket-service

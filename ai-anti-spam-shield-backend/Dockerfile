@@ -41,6 +41,9 @@ COPY src ./src
 COPY package*.json ./
 COPY docker-entrypoint.sh ./
 
+# Copy landing page
+COPY public/landing-page ./public/landing-page
+
 # Make entrypoint executable
 RUN chmod +x docker-entrypoint.sh
 

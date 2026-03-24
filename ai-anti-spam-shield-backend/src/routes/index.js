@@ -8,6 +8,7 @@ const phishingRoutes = require('./phishing.routes');
 const jobRoutes = require('./job.routes');
 const feedbackRoutes = require('./feedback.routes');
 const emailRoutes = require('./email.routes');
+const subscriptionRoutes = require('./subscription.routes');
 
 // Mount routes
 router.use('/messages', messageRoutes);
@@ -17,6 +18,7 @@ router.use('/phishing', phishingRoutes);
 router.use('/jobs', jobRoutes);
 router.use('/feedback', feedbackRoutes);
 router.use('/emails', emailRoutes);
+router.use('/subscriptions', subscriptionRoutes);
 
 // API info endpoint
 router.get('/', (req, res) => {
@@ -31,7 +33,8 @@ router.get('/', (req, res) => {
       phishing: '/api/v1/phishing',
       jobs: '/api/v1/jobs',
       feedback: '/api/v1/feedback',
-      emails: '/api/v1/emails'
+      emails: '/api/v1/emails',
+      subscriptions: '/api/v1/subscriptions'
     }
   });
 });
