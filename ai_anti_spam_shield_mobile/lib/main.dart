@@ -22,16 +22,21 @@ import 'screens/network/network_screen.dart';
 import 'screens/file_scan/file_scan_screen.dart';
 import 'screens/behavior/behavior_screen.dart';
 import 'screens/advanced_dashboard/advanced_dashboard_screen.dart';
+import 'screens/telegram_monitor/telegram_monitor_screen.dart';
 import 'providers/auth_provider.dart';
 import 'providers/settings_provider.dart';
 import 'services/widget_service.dart';
 import 'services/deep_link_service.dart';
+import 'services/telegram_monitor_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
   // Initialize iOS Home Screen Widget service
   await WidgetService.initialize();
+
+  // Restore Telegram auto-scan if the user previously enabled it (Android only).
+  await TelegramMonitorService.instance.initialize();
 
   runApp(
     const ProviderScope(
@@ -76,6 +81,7 @@ class MyApp extends ConsumerWidget {
         '/file-scan': (context) => const FileScanScreen(),
         '/behavior': (context) => const BehaviorScreen(),
         '/advanced-dashboard': (context) => const AdvancedDashboardScreen(),
+        '/telegram-monitor': (context) => const TelegramMonitorScreen(),
       },
     );
   }

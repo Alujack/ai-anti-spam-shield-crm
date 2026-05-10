@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:animate_do/animate_do.dart';
 import '../../models/phishing_result.dart';
 import '../../providers/phishing_provider.dart';
+import '../../services/safe_link_service.dart';
 import '../../utils/colors.dart';
 import '../../widgets/feedback_buttons.dart';
 import '../../widgets/animations/success_checkmark.dart';
@@ -493,68 +494,90 @@ class PhishingResultScreen extends ConsumerWidget {
   Widget _buildUrlItem(URLAnalysis url, bool isDark) {
     final color = url.isSuspicious ? AppColors.danger : AppColors.success;
 
-    return Container(
-      margin: const EdgeInsets.only(bottom: 10),
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: isDark ? 0.12 : 0.06),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: color.withValues(alpha: 0.2)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Icon(
-                url.isSuspicious ? Icons.dangerous : Icons.check_circle,
-                color: color,
-                size: 18,
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Text(
-                  url.url.length > 35 ? '${url.url.substring(0, 35)}...' : url.url,
-                  style: TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                    color: isDark ? AppColors.darkTextPrimary : AppColors.textPrimary,
+    return Builder(builder: (context) {
+      return Container(
+        margin: const EdgeInsets.only(bottom: 10),
+        decoration: BoxDecoration(
+          color: color.withValues(alpha: isDark ? 0.12 : 0.06),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: color.withValues(alpha: 0.2)),
+        ),
+        child: Material(
+          color: Colors.transparent,
+          child: InkWell(
+            onTap: () =>
+                SafeLinkService.instance.handleTap(context, url.url),
+            borderRadius: BorderRadius.circular(12),
+            child: Padding(
+              padding: const EdgeInsets.all(14),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Icon(
+                        url.isSuspicious ? Icons.dangerous : Icons.check_circle,
+                        color: color,
+                        size: 18,
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Text(
+                          url.url.length > 35
+                              ? '${url.url.substring(0, 35)}...'
+                              : url.url,
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                            color: isDark
+                                ? AppColors.darkTextPrimary
+                                : AppColors.textPrimary,
+                          ),
+                        ),
+                      ),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 10, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: color,
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Text(
+                          '${(url.score * 100).toStringAsFixed(0)}%',
+                          style: const TextStyle(
+                            fontSize: 11,
+                            color: Colors.white,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 6),
+                      Icon(Icons.open_in_new, size: 14, color: color),
+                    ],
                   ),
-                ),
+                  if (url.reasons.isNotEmpty) ...[
+                    const SizedBox(height: 10),
+                    ...url.reasons.take(3).map((reason) => Padding(
+                          padding:
+                              const EdgeInsets.only(left: 28, bottom: 4),
+                          child: Text(
+                            '• $reason',
+                            style: TextStyle(
+                              fontSize: 11,
+                              color: isDark
+                                  ? AppColors.darkTextSecondary
+                                  : AppColors.textSecondary,
+                            ),
+                          ),
+                        )),
+                  ],
+                ],
               ),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                decoration: BoxDecoration(
-                  color: color,
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Text(
-                  '${(url.score * 100).toStringAsFixed(0)}%',
-                  style: const TextStyle(
-                    fontSize: 11,
-                    color: Colors.white,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              ),
-            ],
+            ),
           ),
-          if (url.reasons.isNotEmpty) ...[
-            const SizedBox(height: 10),
-            ...url.reasons.take(3).map((reason) => Padding(
-              padding: const EdgeInsets.only(left: 28, bottom: 4),
-              child: Text(
-                '• $reason',
-                style: TextStyle(
-                  fontSize: 11,
-                  color: isDark ? AppColors.darkTextSecondary : AppColors.textSecondary,
-                ),
-              ),
-            )),
-          ],
-        ],
-      ),
-    );
+        ),
+      );
+    });
   }
 
   Widget _buildBrandWarning(BrandImpersonation brand, bool isDark) {

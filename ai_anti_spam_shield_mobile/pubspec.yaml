@@ -66,6 +66,16 @@ dependencies:
   # Deep Linking
   uni_links: ^0.5.1
 
+  # External URL launching (used by SafeLinkService after a verified-safe verdict)
+  url_launcher: ^6.3.0
+
+  # Android-only: read incoming notifications from other apps (e.g. Telegram).
+  # Used by TelegramMonitorService to auto-scan messages for scam/phishing.
+  notification_listener_service: ^0.3.3
+
+  # Local heads-up notifications when a scam is detected on Android
+  flutter_local_notifications: ^17.2.3
+
 dev_dependencies:
   flutter_test:
     sdk: flutter

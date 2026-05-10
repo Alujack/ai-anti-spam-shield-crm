@@ -621,6 +621,30 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             ),
           ],
         ),
+        const SizedBox(height: 12),
+        Row(
+          children: [
+            Expanded(
+              child: _buildActionCard(
+                icon: Icons.shield_moon,
+                title: 'Telegram Auto-Scan',
+                subtitle: 'Auto-detect scams',
+                gradient: const LinearGradient(
+                  colors: [Color(0xFF229ED9), Color(0xFF1B7BB0)],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
+                isDark: isDark,
+                onTap: () =>
+                    Navigator.pushNamed(context, '/telegram-monitor'),
+              ),
+            ),
+            const SizedBox(width: 12),
+            const Expanded(child: SizedBox.shrink()),
+            const SizedBox(width: 12),
+            const Expanded(child: SizedBox.shrink()),
+          ],
+        ),
       ],
     );
   }
