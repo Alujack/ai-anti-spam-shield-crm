@@ -5,26 +5,253 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Payment Successful — AI Scam Shield</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
-    body { font-family: 'Inter', sans-serif; min-height: 100vh; display: flex; align-items: center; justify-content: center; background: #F0EDFF; padding: 24px; }
-    .card { background: white; border-radius: 24px; padding: 60px 48px; text-align: center; max-width: 480px; box-shadow: 0 8px 30px rgba(0,0,0,0.1); }
-    .icon { width: 80px; height: 80px; background: #E8FFF6; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 24px; font-size: 36px; }
-    h1 { font-size: 28px; font-weight: 800; margin-bottom: 12px; color: #1A1A2E; }
-    p { font-size: 16px; color: #6B7280; line-height: 1.6; margin-bottom: 32px; }
-    .btn { display: inline-block; padding: 14px 36px; background: #6C5CE7; color: white; border-radius: 12px; text-decoration: none; font-weight: 600; font-size: 15px; transition: background 0.2s; }
-    .btn:hover { background: #5A4BD1; }
-    .sub-text { margin-top: 20px; font-size: 13px; color: #9CA3AF; }
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: linear-gradient(160deg, #F0EDFF 0%, #E5E0FF 50%, #DCD5FF 100%);
+      padding: 24px;
+      color: #1A1A2E;
+    }
+    .receipt {
+      background: white;
+      border-radius: 20px;
+      padding: 48px 40px 36px;
+      width: 100%;
+      max-width: 520px;
+      box-shadow: 0 20px 60px rgba(76, 60, 180, 0.25);
+      position: relative;
+      overflow: hidden;
+    }
+    .receipt::before {
+      content: '';
+      position: absolute;
+      top: -2px; left: 0; right: 0;
+      height: 4px;
+      background: linear-gradient(90deg, #6C5CE7, #00D2A0);
+    }
+    .check-wrap {
+      width: 84px;
+      height: 84px;
+      background: #E8FFF6;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin: 0 auto 24px;
+      animation: pop 0.5s cubic-bezier(0.2, 0.8, 0.2, 1);
+    }
+    @keyframes pop {
+      0% { transform: scale(0); }
+      70% { transform: scale(1.12); }
+      100% { transform: scale(1); }
+    }
+    .check-wrap svg { width: 44px; height: 44px; }
+    .check-wrap circle { stroke-dasharray: 166; stroke-dashoffset: 166; animation: drawCircle 0.6s ease forwards; }
+    .check-wrap path { stroke-dasharray: 48; stroke-dashoffset: 48; animation: drawCheck 0.4s 0.4s ease forwards; }
+    @keyframes drawCircle { to { stroke-dashoffset: 0; } }
+    @keyframes drawCheck  { to { stroke-dashoffset: 0; } }
+    h1 { font-size: 26px; font-weight: 800; text-align: center; margin-bottom: 8px; }
+    .sub { text-align: center; color: #6B7280; font-size: 15px; margin-bottom: 28px; line-height: 1.5; }
+    .sub strong { color: #1A1A2E; }
+    .amount {
+      text-align: center;
+      font-size: 44px;
+      font-weight: 800;
+      letter-spacing: -0.02em;
+      margin-bottom: 4px;
+    }
+    .amount-meta { text-align: center; color: #6B7280; font-size: 13px; margin-bottom: 28px; }
+
+    .details {
+      border-top: 1px dashed #E5E7EB;
+      border-bottom: 1px dashed #E5E7EB;
+      padding: 18px 0;
+      margin-bottom: 24px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+    .row { display: flex; justify-content: space-between; align-items: center; font-size: 13px; }
+    .row span:first-child { color: #6B7280; }
+    .row span:last-child  { font-weight: 600; color: #1A1A2E; text-align: right; }
+    .card-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .brand-tag {
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-size: 9px;
+      font-weight: 800;
+      letter-spacing: 0.05em;
+      color: white;
+    }
+    .brand-tag.visa { background: #1A1F71; }
+    .brand-tag.mc   { background: linear-gradient(90deg, #EB001B 50%, #F79E1B 50%); }
+    .brand-tag.amex { background: #2E77BC; }
+    .brand-tag.card { background: #6C5CE7; }
+    .session-id {
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      font-size: 11px;
+      color: #6B7280;
+    }
+    .actions { display: flex; flex-direction: column; gap: 10px; }
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      padding: 13px 20px;
+      border-radius: 10px;
+      text-decoration: none;
+      font-weight: 600;
+      font-size: 14px;
+      cursor: pointer;
+      transition: all 0.2s;
+      border: 2px solid transparent;
+      font-family: inherit;
+    }
+    .btn-primary { background: #6C5CE7; color: white; }
+    .btn-primary:hover { background: #5A4BD1; transform: translateY(-1px); }
+    .btn-outline {
+      background: transparent;
+      color: #6C5CE7;
+      border-color: #6C5CE7;
+    }
+    .btn-outline:hover { background: #6C5CE7; color: white; }
+    .next-steps {
+      margin-top: 20px;
+      background: #F8F9FC;
+      border-radius: 12px;
+      padding: 16px 18px;
+      font-size: 13px;
+      color: #6B7280;
+      line-height: 1.6;
+    }
+    .next-steps strong { color: #1A1A2E; display: block; margin-bottom: 6px; }
+    .next-steps ol { margin: 0; padding-left: 18px; }
+    .next-steps li { margin-bottom: 4px; }
+    .demo-tag {
+      position: absolute;
+      top: 16px;
+      right: 16px;
+      background: #FECA57;
+      color: #6B4F00;
+      font-size: 10px;
+      font-weight: 800;
+      letter-spacing: 0.05em;
+      padding: 4px 8px;
+      border-radius: 4px;
+    }
+    @media (max-width: 480px) {
+      .receipt { padding: 36px 24px 28px; }
+      .amount { font-size: 36px; }
+      h1 { font-size: 22px; }
+    }
   </style>
 </head>
 <body>
-  <div class="card">
-    <div class="icon">&#10003;</div>
-    <h1>Payment Successful!</h1>
-    <p>Welcome to AI Scam Shield Pro. Your account has been upgraded and all premium features are now active.</p>
-    <a href="/" class="btn">Back to Home</a>
-    <p class="sub-text">Download the app to get started with your premium protection.</p>
+  <div class="receipt">
+    <span class="demo-tag">DEMO MODE</span>
+
+    <div class="check-wrap">
+      <svg viewBox="0 0 60 60" fill="none">
+        <circle cx="30" cy="30" r="26" stroke="#00D2A0" stroke-width="3.5"/>
+        <path d="M18 30 L27 39 L43 22" stroke="#00D2A0" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+    </div>
+
+    <h1>Payment Successful</h1>
+    <p class="sub">Welcome to <strong id="planName">AI Scam Shield Pro</strong>. Your subscription is active and a receipt has been sent to <strong id="emailShown">your email</strong>.</p>
+
+    <div class="amount">$<span id="amountShown">9.99</span></div>
+    <div class="amount-meta" id="billingShown">Billed monthly · Renews automatically</div>
+
+    <div class="details">
+      <div class="row"><span>Plan</span><span id="planRow">AI Scam Shield Pro</span></div>
+      <div class="row"><span>Billing</span><span id="billingRow">Monthly</span></div>
+      <div class="row"><span>Payment method</span>
+        <span class="card-pill">
+          <span class="brand-tag" id="brandTag">VISA</span>
+          <span id="cardLast4">•••• 4242</span>
+        </span>
+      </div>
+      <div class="row"><span>Next charge</span><span id="nextChargeRow">—</span></div>
+      <div class="row"><span>Transaction ID</span><span class="session-id" id="sessionId">cs_demo_xxxxxxxxxx</span></div>
+    </div>
+
+    <div class="actions">
+      <a href="#" class="btn btn-primary" id="downloadAppBtn">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+        Download the App
+      </a>
+      <a href="index.html" class="btn btn-outline">Back to Home</a>
+    </div>
+
+    <div class="next-steps">
+      <strong>What's next?</strong>
+      <ol>
+        <li>Download AI Scam Shield from the App Store or Google Play</li>
+        <li>Sign in with <span id="emailLink">your email</span> to unlock premium features</li>
+        <li>Connect your inbox & enable SMS scanning</li>
+      </ol>
+    </div>
   </div>
+
+  <script>
+    const params = new URLSearchParams(window.location.search);
+    const plan = (params.get('plan') || 'pro').toLowerCase();
+    const billing = (params.get('billing') || 'monthly').toLowerCase();
+    const amount = params.get('amount') || (plan === 'enterprise' ? '29.99' : '9.99');
+    const brand = (params.get('brand') || 'visa').toLowerCase();
+    const last4 = params.get('last4') || '4242';
+    const email = params.get('email') || 'demo@aiscamshield.codes';
+    const sessionId = params.get('session_id') || 'cs_demo_' + Math.random().toString(36).slice(2, 12);
+
+    const planName = plan === 'enterprise' ? 'AI Scam Shield Enterprise'
+                   : plan === 'free'       ? 'AI Scam Shield Free'
+                   : 'AI Scam Shield Pro';
+
+    document.getElementById('planName').textContent = planName;
+    document.getElementById('planRow').textContent  = planName;
+    document.getElementById('amountShown').textContent = amount;
+    document.getElementById('emailShown').textContent  = email;
+    document.getElementById('emailLink').textContent   = email;
+    document.getElementById('sessionId').textContent   = sessionId;
+    document.getElementById('cardLast4').textContent   = '•••• ' + last4;
+
+    const brandLabels = { visa: 'VISA', mc: 'MC', amex: 'AMEX', card: 'CARD' };
+    const brandTag = document.getElementById('brandTag');
+    brandTag.textContent = brandLabels[brand] || 'CARD';
+    brandTag.className = 'brand-tag ' + (brandLabels[brand] ? brand : 'card');
+
+    const isYearly = billing === 'yearly';
+    document.getElementById('billingRow').textContent = isYearly ? 'Yearly' : 'Monthly';
+    document.getElementById('billingShown').textContent = isYearly
+      ? 'Billed yearly · Renews automatically'
+      : 'Billed monthly · Renews automatically';
+
+    const next = new Date();
+    if (isYearly) next.setFullYear(next.getFullYear() + 1);
+    else next.setMonth(next.getMonth() + 1);
+    document.getElementById('nextChargeRow').textContent =
+      next.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
+
+    if (plan === 'free') {
+      document.querySelector('.amount').textContent = '$0.00';
+      document.getElementById('billingShown').textContent = 'Free plan · No charge';
+      document.getElementById('billingRow').textContent = 'Free';
+      document.getElementById('nextChargeRow').textContent = '—';
+      document.querySelector('.row:nth-child(3)').style.display = 'none';
+      document.querySelector('.row:nth-child(5)').style.display = 'none';
+    }
+  </script>
 </body>
 </html>

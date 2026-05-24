@@ -27,6 +27,7 @@
         <span>AI Scam Shield</span>
       </a>
       <div class="nav-links" id="navLinks">
+        <a href="#try-it">Try It Live</a>
         <a href="#features">Features</a>
         <a href="#how-it-works">How It Works</a>
         <a href="#pricing">Pricing</a>
@@ -131,6 +132,49 @@
         <div class="trust-badge">
           <svg width="20" height="20" viewBox="0 0 20 20" fill="none"><circle cx="10" cy="10" r="8" stroke="#6C5CE7" stroke-width="1.5"/><path d="M10 6v4l2.5 2.5" stroke="#6C5CE7" stroke-width="1.5" stroke-linecap="round"/></svg>
           <span>Real-Time Protection</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Interactive Scanner Demo -->
+  <section class="scanner-demo" id="try-it">
+    <div class="container">
+      <div class="section-header">
+        <span class="section-badge">Try It Live</span>
+        <h2>See the AI Detect Scams<br>In Real-Time</h2>
+        <p>Paste a suspicious message, email, or URL. Watch our AI analyze it in seconds.</p>
+      </div>
+
+      <div class="scanner-card">
+        <div class="scanner-tabs">
+          <button class="scanner-tab active" data-tab="message">Message / SMS</button>
+          <button class="scanner-tab" data-tab="email">Email</button>
+          <button class="scanner-tab" data-tab="url">URL / Link</button>
+        </div>
+
+        <div class="scanner-body">
+          <div class="scanner-input-wrap">
+            <textarea id="scannerInput" class="scanner-input" placeholder="Paste a suspicious message here, or try one of the examples below..." rows="4"></textarea>
+            <div class="scanner-examples">
+              <span class="examples-label">Try:</span>
+              <button class="example-chip" data-example="phishing">Bank phishing</button>
+              <button class="example-chip" data-example="lottery">Lottery scam</button>
+              <button class="example-chip" data-example="delivery">Fake delivery</button>
+              <button class="example-chip" data-example="safe">Safe message</button>
+            </div>
+            <button class="btn btn-primary scanner-btn" id="scanBtn">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+              <span>Analyze with AI</span>
+            </button>
+          </div>
+
+          <div class="scanner-result" id="scannerResult">
+            <div class="scanner-empty">
+              <svg width="56" height="56" viewBox="0 0 24 24" fill="none" stroke="#A29BFE" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+              <p>Results will appear here</p>
+            </div>
+          </div>
         </div>
       </div>
     </div>
@@ -263,7 +307,7 @@
             <li class="disabled"><span class="x">&times;</span> Voice call analysis</li>
             <li class="disabled"><span class="x">&times;</span> Priority support</li>
           </ul>
-          <a href="#" class="btn btn-outline btn-block" data-plan="free">Get Started Free</a>
+          <button class="btn btn-outline btn-block" data-plan="free">Get Started Free</button>
         </div>
 
         <!-- Pro Plan -->
@@ -287,7 +331,7 @@
             <li><span class="check">&#10003;</span> Scan history & reports</li>
             <li><span class="check">&#10003;</span> Priority support</li>
           </ul>
-          <button class="btn btn-primary btn-block" data-plan="pro" onclick="subscribe('pro')">Subscribe Now</button>
+          <button class="btn btn-primary btn-block" data-plan="pro" data-amount-monthly="9.99" data-amount-yearly="95.88">Subscribe Now</button>
         </div>
 
         <!-- Enterprise Plan -->
@@ -310,7 +354,7 @@
             <li><span class="check">&#10003;</span> Dedicated account manager</li>
             <li><span class="check">&#10003;</span> SLA guarantee</li>
           </ul>
-          <button class="btn btn-outline btn-block" data-plan="enterprise" onclick="subscribe('enterprise')">Subscribe Now</button>
+          <button class="btn btn-outline btn-block" data-plan="enterprise" data-amount-monthly="29.99" data-amount-yearly="287.88">Subscribe Now</button>
         </div>
       </div>
     </div>
@@ -427,14 +471,14 @@
         <a href="#pricing" class="btn btn-white btn-lg">Start Free Trial</a>
       </div>
       <div class="app-badges">
-        <a href="#" class="app-badge" aria-label="Download on App Store">
+        <a href="#" class="app-badge" data-app-link="ios" aria-label="Open or download on App Store">
           <svg width="24" height="24" viewBox="0 0 24 24" fill="white"><path d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.8-.91.65.03 2.47.26 3.64 1.98-.09.06-2.17 1.28-2.15 3.81.03 3.02 2.65 4.03 2.68 4.04-.03.07-.42 1.44-1.38 2.83M13 3.5c.73-.83 1.94-1.46 2.94-1.5.13 1.17-.34 2.35-1.04 3.19-.69.85-1.83 1.51-2.95 1.42-.15-1.15.41-2.35 1.05-3.11z"/></svg>
           <div>
             <small>Download on the</small>
             <strong>App Store</strong>
           </div>
         </a>
-        <a href="#" class="app-badge" aria-label="Get it on Google Play">
+        <a href="#" class="app-badge" data-app-link="android" aria-label="Open or get it on Google Play">
           <svg width="24" height="24" viewBox="0 0 24 24" fill="white"><path d="M3.18 23.69c.17.07.36.06.53-.04l9.68-5.6-2.93-2.93-7.28 8.57zm-.47-.99L13.34 11.3 3.03 1.36c-.21.2-.34.5-.34.85v19.65c0 .33.11.62.29.82l-.27.02zm.78-22.3l7.28 8.56 2.93-2.92L4.01.44c-.1-.06-.22-.1-.33-.1-.06 0-.12.01-.18.03l-.01.03zm17.32 9.26l-3.2-1.85-3.27 3.26 3.27 3.27 3.2-1.85c.53-.3.84-.82.84-1.41 0-.6-.31-1.12-.84-1.42z"/></svg>
           <div>
             <small>Get it on</small>
@@ -486,6 +530,128 @@
       </div>
     </div>
   </footer>
+
+  <!-- Checkout Modal (Stripe-style, demo only) -->
+  <div class="checkout-overlay" id="checkoutOverlay" aria-hidden="true">
+    <div class="checkout-modal" role="dialog" aria-labelledby="checkoutTitle" aria-modal="true">
+      <button class="checkout-close" id="checkoutClose" aria-label="Close">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+
+      <div class="checkout-grid">
+        <!-- LEFT: Order summary -->
+        <div class="checkout-summary">
+          <div class="checkout-brand">
+            <svg width="28" height="28" viewBox="0 0 32 32" fill="none">
+              <rect width="32" height="32" rx="8" fill="white" fill-opacity="0.15"/>
+              <path d="M16 6L8 10v6c0 5.55 3.42 10.74 8 12 4.58-1.26 8-6.45 8-12v-6L16 6z" fill="white" opacity="0.95"/>
+              <path d="M14 16l2 2 4-4" stroke="#6C5CE7" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+            <span>AI Scam Shield</span>
+          </div>
+          <p class="checkout-subscribe-to">Subscribe to AI Scam Shield <span id="checkoutPlanName">Pro</span></p>
+          <div class="checkout-price-row">
+            <span class="checkout-price-big">$<span id="checkoutPriceBig">9.99</span></span>
+            <div class="checkout-price-meta">
+              <span id="checkoutBillingMeta">Per month</span>
+            </div>
+          </div>
+          <div class="checkout-line">
+            <div>
+              <div class="checkout-line-title" id="checkoutLineTitle">AI Scam Shield Pro</div>
+              <div class="checkout-line-sub" id="checkoutLineSub">Billed monthly</div>
+            </div>
+            <div class="checkout-line-amt">$<span id="checkoutLineAmt">9.99</span></div>
+          </div>
+          <div class="checkout-divider"></div>
+          <div class="checkout-totals">
+            <div class="checkout-row"><span>Subtotal</span><span>$<span id="checkoutSubtotal">9.99</span></span></div>
+            <div class="checkout-row checkout-promo-row">
+              <button class="checkout-promo-toggle" id="promoToggle">Add promotion code</button>
+              <span></span>
+            </div>
+            <div class="checkout-promo-input" id="promoInput" hidden>
+              <input type="text" placeholder="Enter code" id="promoCode" maxlength="20">
+              <button id="promoApply">Apply</button>
+            </div>
+            <div class="checkout-row checkout-discount" id="checkoutDiscountRow" hidden>
+              <span>Discount (<span id="promoCodeLabel"></span>)</span>
+              <span>−$<span id="checkoutDiscount">0.00</span></span>
+            </div>
+            <div class="checkout-row"><span>Tax</span><span>$0.00</span></div>
+            <div class="checkout-row checkout-total"><span>Total due today</span><span>$<span id="checkoutTotal">9.99</span></span></div>
+          </div>
+          <div class="checkout-footer-note">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>
+            <span>Secured by <strong>stripe</strong> · Demo Mode</span>
+          </div>
+        </div>
+
+        <!-- RIGHT: Payment form -->
+        <div class="checkout-form">
+          <h3 id="checkoutTitle">Pay with card</h3>
+
+          <form id="checkoutForm" autocomplete="off" novalidate>
+            <div class="form-group">
+              <label for="cardEmail">Email</label>
+              <input type="email" id="cardEmail" placeholder="you@example.com" required>
+            </div>
+
+            <div class="form-group">
+              <label for="cardNumber">Card information</label>
+              <div class="card-input-stack">
+                <div class="card-input-row">
+                  <input type="text" id="cardNumber" placeholder="1234 1234 1234 1234" inputmode="numeric" maxlength="19" required>
+                  <div class="card-brand-icons">
+                    <span class="card-brand visa" data-brand="visa">VISA</span>
+                    <span class="card-brand mc" data-brand="mc">MC</span>
+                    <span class="card-brand amex" data-brand="amex">AMEX</span>
+                  </div>
+                </div>
+                <div class="card-input-row card-input-row-split">
+                  <input type="text" id="cardExp" placeholder="MM / YY" inputmode="numeric" maxlength="7" required>
+                  <input type="text" id="cardCvc" placeholder="CVC" inputmode="numeric" maxlength="4" required>
+                </div>
+              </div>
+            </div>
+
+            <div class="form-group">
+              <label for="cardName">Cardholder name</label>
+              <input type="text" id="cardName" placeholder="Full name on card" required>
+            </div>
+
+            <div class="form-group">
+              <label for="cardCountry">Country</label>
+              <select id="cardCountry">
+                <option value="US">United States</option>
+                <option value="GB">United Kingdom</option>
+                <option value="CA">Canada</option>
+                <option value="AU">Australia</option>
+                <option value="DE">Germany</option>
+                <option value="FR">France</option>
+                <option value="JP">Japan</option>
+                <option value="KH">Cambodia</option>
+                <option value="SG">Singapore</option>
+              </select>
+            </div>
+
+            <button type="button" class="demo-card-btn" id="demoCardBtn">Use demo card 4242 4242 4242 4242</button>
+
+            <button type="submit" class="checkout-pay-btn" id="checkoutPayBtn">
+              <span class="pay-label">Subscribe · Pay $<span id="payBtnAmount">9.99</span></span>
+              <span class="pay-spinner"></span>
+            </button>
+
+            <p class="checkout-tos">
+              By subscribing, you agree to AI Scam Shield's
+              <a href="#">Terms</a> and <a href="#">Privacy Policy</a>.
+              You can cancel anytime.
+            </p>
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
 
   <script src="js/main.js"></script>
 </body>
