@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(pandoc --version)",
+      "Bash(pip3 show *)",
+      "Bash(pip3 list *)",
+      "WebFetch(domain:en.wikipedia.org)",
+      "Bash(tee /tmp/mobile_api_calls.txt)"
+    ]
+  }
+}
