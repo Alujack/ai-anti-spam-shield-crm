@@ -5,7 +5,18 @@
       "Bash(pip3 show *)",
       "Bash(pip3 list *)",
       "WebFetch(domain:en.wikipedia.org)",
-      "Bash(tee /tmp/mobile_api_calls.txt)"
+      "Bash(tee /tmp/mobile_api_calls.txt)",
+      "Bash(node -e ' *)",
+      "Bash(lsof -nP -iTCP:8765 -sTCP:LISTEN)",
+      "Bash(kill 10191)",
+      "Bash(git -C /opt/ai-anti-spam-shield-crm remote -v)",
+      "Bash(git -C /opt/ai-anti-spam-shield-crm status --short)",
+      "Bash(git -C /opt/ai-anti-spam-shield-crm status --porcelain)",
+      "Bash(grep -A5 -i \"^Host ai-shield\" ~/.ssh/config 2>/dev/null || echo \"\\(no ai-shield host found in ~/.ssh/config\\)\")",
+      "Read(//Users/microstore/.ssh/**)",
+      "Bash(git -C /opt/ai-anti-spam-shield-crm diff --cached --name-only)",
+      "Bash(git -C /opt/ai-anti-spam-shield-crm restore --staged .claude/settings.json ai_anti_spam_shield_mobile/android/app/src/main/AndroidManifest.xml landing-page/css/style.css landing-page/index.html landing-page/js/main.js landing-page/success.html)",
+      "Bash(git -C /opt/ai-anti-spam-shield-crm log --oneline -3)"
     ]
   }
 }
