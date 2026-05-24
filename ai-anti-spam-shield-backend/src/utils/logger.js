@@ -9,7 +9,7 @@ const path = require('path');
 const fs = require('fs');
 
 // Log directory configuration
-const LOG_DIR = process.env.LOG_DIR || path.join(__dirname, '../../../logs/backend');
+const LOG_DIR = process.env.LOG_DIR || path.join(__dirname, '../../logs');
 const LOG_LEVEL = process.env.LOG_LEVEL || (process.env.NODE_ENV === 'production' ? 'info' : 'debug');
 const LOG_MAX_SIZE = process.env.LOG_MAX_SIZE || '20m';
 const LOG_MAX_FILES = process.env.LOG_MAX_FILES || '14d';
