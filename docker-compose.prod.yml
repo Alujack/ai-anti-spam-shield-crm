@@ -133,12 +133,12 @@ services:
       - ai-shield-network
     restart: always
     deploy:
-      replicas: 2
+      replicas: 1
       resources:
         limits:
-          memory: 256M
+          memory: 512M
         reservations:
-          memory: 128M
+          memory: 256M
 
   voice-worker:
     build:
@@ -184,9 +184,9 @@ services:
     deploy:
       resources:
         limits:
-          memory: 256M
+          memory: 512M
         reservations:
-          memory: 128M
+          memory: 256M
 
   email-worker:
     build:
@@ -209,9 +209,9 @@ services:
     deploy:
       resources:
         limits:
-          memory: 256M
+          memory: 512M
         reservations:
-          memory: 128M
+          memory: 256M
 
   email-scheduler:
     build:
@@ -233,9 +233,9 @@ services:
     deploy:
       resources:
         limits:
-          memory: 128M
+          memory: 512M
         reservations:
-          memory: 64M
+          memory: 256M
 
   # ===========================================
   # ML SERVICE (FastAPI)
