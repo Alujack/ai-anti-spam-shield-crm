@@ -21,6 +21,10 @@ services:
         paths:
           - /health
         strip_path: false
+      - name: root-route
+        paths:
+          - /
+        strip_path: false
 
   # WebSocket Service (for real-time updates)
   - name: websocket-service
