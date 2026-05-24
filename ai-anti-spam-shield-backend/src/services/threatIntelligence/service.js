@@ -1,5 +1,4 @@
 const axios = require('axios');
-const asyncHandler = require('../utils/asyncHandler');
 
 /**
  * Threat Intelligence Service
