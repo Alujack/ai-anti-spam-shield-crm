@@ -79,7 +79,7 @@ services:
       NODE_ENV: production
       PORT: 3000
       DATABASE_URL: postgresql://aishield:${DB_PASSWORD}@postgres:5432/aishield
-      REDIS_URL: redis://redis:6379
+      REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379
       AI_SERVICE_URL: http://ml-service:8000
       JWT_SECRET: ${JWT_SECRET}
       JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET}
@@ -125,7 +125,7 @@ services:
       NODE_ENV: production
       WORKER_TYPE: text
       DATABASE_URL: postgresql://aishield:${DB_PASSWORD}@postgres:5432/aishield
-      REDIS_URL: redis://redis:6379
+      REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379
       AI_SERVICE_URL: http://ml-service:8000
     depends_on:
       - backend
@@ -150,7 +150,7 @@ services:
       NODE_ENV: production
       WORKER_TYPE: voice
       DATABASE_URL: postgresql://aishield:${DB_PASSWORD}@postgres:5432/aishield
-      REDIS_URL: redis://redis:6379
+      REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379
       AI_SERVICE_URL: http://ml-service:8000
     depends_on:
       - backend
@@ -174,7 +174,7 @@ services:
       NODE_ENV: production
       WORKER_TYPE: url
       DATABASE_URL: postgresql://aishield:${DB_PASSWORD}@postgres:5432/aishield
-      REDIS_URL: redis://redis:6379
+      REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379
       AI_SERVICE_URL: http://ml-service:8000
     depends_on:
       - backend
@@ -198,7 +198,7 @@ services:
       NODE_ENV: production
       WORKER_TYPE: email
       DATABASE_URL: postgresql://aishield:${DB_PASSWORD}@postgres:5432/aishield
-      REDIS_URL: redis://redis:6379
+      REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379
       AI_SERVICE_URL: http://ml-service:8000
       ENCRYPTION_KEY: ${ENCRYPTION_KEY}
     depends_on:
@@ -223,7 +223,7 @@ services:
       NODE_ENV: production
       WORKER_TYPE: email-scheduler
       DATABASE_URL: postgresql://aishield:${DB_PASSWORD}@postgres:5432/aishield
-      REDIS_URL: redis://redis:6379
+      REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379
       ENCRYPTION_KEY: ${ENCRYPTION_KEY}
     depends_on:
       - backend
