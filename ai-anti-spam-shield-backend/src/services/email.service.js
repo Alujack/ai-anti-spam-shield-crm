@@ -220,10 +220,16 @@ class EmailService {
         id: true,
         email: true,
         provider: true,
+        imapHost: true,
+        imapPort: true,
         isActive: true,
         autoScanInterval: true,
         lastScanAt: true,
         lastScanStatus: true,
+        totalScanned: true,
+        totalFlagged: true,
+        createdAt: true,
+        updatedAt: true,
       },
     });
 
