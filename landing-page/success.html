@@ -155,6 +155,40 @@
       .amount { font-size: 36px; }
       h1 { font-size: 22px; }
     }
+
+    /* QR modal shown when "Download the App" is clicked on desktop */
+    .app-qr-modal {
+      position: fixed;
+      inset: 0;
+      background: rgba(15, 15, 30, 0.6);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      z-index: 1100;
+      padding: 20px;
+    }
+    .app-qr-modal.show { display: flex; }
+    .app-qr-card {
+      position: relative;
+      background: white;
+      color: #1a1a2e;
+      border-radius: 16px;
+      padding: 32px 28px;
+      max-width: 360px;
+      width: 100%;
+      text-align: center;
+      box-shadow: 0 30px 60px rgba(0, 0, 0, 0.3);
+    }
+    .app-qr-card h3 { margin: 0 0 12px; font-size: 20px; font-weight: 700; }
+    .app-qr-card p { margin: 0 0 16px; font-size: 14px; color: #555; line-height: 1.5; }
+    .app-qr-card img { display: block; margin: 0 auto 16px; border-radius: 12px; }
+    .app-qr-card .app-qr-hint { font-size: 12px; color: #888; margin: 0; }
+    .app-qr-close {
+      position: absolute; top: 10px; right: 14px;
+      background: transparent; border: 0; font-size: 28px; line-height: 1;
+      cursor: pointer; color: #888;
+    }
+    .app-qr-close:hover { color: #1a1a2e; }
   </style>
 </head>
 <body>
@@ -188,7 +222,7 @@
     </div>
 
     <div class="actions">
-      <a href="#" class="btn btn-primary" id="downloadAppBtn">
+      <a href="aishield://open" class="btn btn-primary" id="downloadAppBtn" data-app-link="auto">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
         Download the App
       </a>
@@ -252,6 +286,46 @@
       document.querySelector('.row:nth-child(3)').style.display = 'none';
       document.querySelector('.row:nth-child(5)').style.display = 'none';
     }
+
+    // ===== Open the mobile app from "Download the App" button =====
+    const APP_SCHEME_URL = 'aishield://open';
+    function detectPlatform() {
+      const ua = navigator.userAgent || '';
+      if (/iPhone|iPad|iPod/.test(ua)) return 'ios';
+      if (/Android/.test(ua)) return 'android';
+      return 'desktop';
+    }
+    function showQrModal() {
+      let modal = document.getElementById('appQrModal');
+      if (!modal) {
+        const qrSrc = 'https://api.qrserver.com/v1/create-qr-code/?size=260x260&margin=8&data=' +
+          encodeURIComponent(APP_SCHEME_URL);
+        modal = document.createElement('div');
+        modal.id = 'appQrModal';
+        modal.className = 'app-qr-modal';
+        modal.innerHTML =
+          '<div class="app-qr-card" role="dialog" aria-modal="true" aria-labelledby="appQrTitle">' +
+            '<button class="app-qr-close" aria-label="Close">&times;</button>' +
+            '<h3 id="appQrTitle">Open on your phone</h3>' +
+            '<p>Scan this QR code with your phone\'s camera. AI Scam Shield will open if it\'s installed.</p>' +
+            '<img alt="QR code linking to ' + APP_SCHEME_URL + '" src="' + qrSrc + '" width="220" height="220">' +
+            '<p class="app-qr-hint">App not yet on the App Store or Google Play — listings coming soon.</p>' +
+          '</div>';
+        document.body.appendChild(modal);
+        const close = () => modal.classList.remove('show');
+        modal.querySelector('.app-qr-close').addEventListener('click', close);
+        modal.addEventListener('click', (e) => { if (e.target === modal) close(); });
+        document.addEventListener('keydown', (e) => { if (e.key === 'Escape') close(); });
+      }
+      modal.classList.add('show');
+    }
+    document.getElementById('downloadAppBtn').addEventListener('click', (e) => {
+      if (detectPlatform() === 'desktop') {
+        e.preventDefault();
+        showQrModal();
+      }
+      // On mobile, fall through and let href="aishield://open" do the work natively.
+    });
   </script>
 </body>
 </html>
