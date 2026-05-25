@@ -55,7 +55,15 @@
       "Bash(TRAIN_MODELS=false docker compose build)",
       "Bash(cloudflared --version)",
       "Bash(cloudflared tunnel *)",
-      "Bash(tee /tmp/cloudflared.log)"
+      "Bash(tee /tmp/cloudflared.log)",
+      "Bash(ssh-keygen -F 165.245.182.155)",
+      "Bash(git -C /opt/ai-anti-spam-shield-crm diff --stat HEAD~3 HEAD)",
+      "Bash(git -C /opt/ai-anti-spam-shield-crm ls-files)",
+      "Bash(git -C /opt/ai-anti-spam-shield-crm status -sb)",
+      "Bash(git -C /opt/ai-anti-spam-shield-crm diff --stat .claude/settings.json)",
+      "Bash(git -C /opt/ai-anti-spam-shield-crm ls-files ai-anti-spam-shield-service-model/app/model/)",
+      "Bash(tee /tmp/prod-build.log)",
+      "Bash(chmod +x /opt/ai-anti-spam-shield-crm/defense/preflight-demo.sh)"
     ]
   }
 }

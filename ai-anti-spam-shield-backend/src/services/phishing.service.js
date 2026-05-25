@@ -15,7 +15,7 @@ const DEEP_SCAN_TIMEOUT_MS = 60_000;
 // Bump this whenever the scoring logic changes (risk_scorer, phishing_detector,
 // fusion code below). Old cache keys are namespaced under the previous version
 // and naturally expire by TTL, so a code change can't be masked by stale results.
-const DEEP_SCAN_SCORER_VERSION = 'v2';
+const DEEP_SCAN_SCORER_VERSION = 'v3';
 
 /**
  * Phishing Detection Service
@@ -291,6 +291,19 @@ class PhishingService {
       const deepIsPhishing = Boolean(deepResp.data.is_phishing);
       const deepThreat = (deepResp.data.threat_level || 'NONE').toUpperCase();
 
+      // Trusted-domain detection. The deep risk_scorer tags well-known
+      // legitimate brands (google.com, paypal.com, github.com, …) with a
+      // `trusted_domain` indicator. Legitimate sites *also* set cookies,
+      // register service workers, use fingerprinting APIs (canvas/audio),
+      // and open WebRTC connections — behaviors the safe-lab can't
+      // distinguish from malicious use at the API level. When the domain is
+      // trusted, ignore behavior-based escalation entirely.
+      const riskIndicators =
+        deepResp.data.details?.risk_assessment?.indicators || [];
+      const isTrustedDomain = riskIndicators.some(
+        (i) => i?.source === 'trusted_domain',
+      );
+
       // Pull risk_score (0-100) from risk_assessment for a soft probability bump
       // when the deep layer found real signals but didn't cross its own threshold.
       const riskScore100 = Number(
@@ -303,20 +316,24 @@ class PhishingService {
       // bad runtime behavior would show "0% phishing confidence" while still
       // being flagged — confusing UX.
       // We look ahead at behaviors here so the floor applies to the displayed
-      // confidence too.
-      const _behaviors =
-        deepResp.data.details?.visual_analysis?.behavior_findings || [];
-      const _critCount = _behaviors.filter(
-        (f) => (f.severity || '').toLowerCase() === 'critical',
-      ).length;
-      const _highCount = _behaviors.filter(
-        (f) => (f.severity || '').toLowerCase() === 'high',
-      ).length;
+      // confidence too. Skipped for trusted brands — legitimate sites
+      // legitimately exhibit many of these same behaviors (cookies, service
+      // workers, fingerprinting, WebRTC).
       let behaviorFloor = 0;
-      if (_critCount >= 2) behaviorFloor = 0.9;
-      else if (_critCount >= 1) behaviorFloor = 0.75;
-      else if (_highCount >= 2) behaviorFloor = 0.65;
-      else if (_highCount >= 1) behaviorFloor = 0.55;
+      if (!isTrustedDomain) {
+        const _behaviors =
+          deepResp.data.details?.visual_analysis?.behavior_findings || [];
+        const _critCount = _behaviors.filter(
+          (f) => (f.severity || '').toLowerCase() === 'critical',
+        ).length;
+        const _highCount = _behaviors.filter(
+          (f) => (f.severity || '').toLowerCase() === 'high',
+        ).length;
+        if (_critCount >= 2) behaviorFloor = 0.9;
+        else if (_critCount >= 1) behaviorFloor = 0.75;
+        else if (_highCount >= 2) behaviorFloor = 0.65;
+        else if (_highCount >= 1) behaviorFloor = 0.55;
+      }
 
       const rawPhishingConfidence = Math.max(
         staticConfidence,
@@ -329,8 +346,10 @@ class PhishingService {
       // password POST, auto-download, miner script), force the verdict even
       // when the risk_scorer didn't escalate (e.g. fresh URL with no WHOIS
       // history, or a URL the static layer doesn't have patterns for).
-      const behaviorFindings =
-        deepResp.data.details?.visual_analysis?.behavior_findings || [];
+      // Trusted brands are exempt — same reason as the behaviorFloor gate above.
+      const behaviorFindings = isTrustedDomain
+        ? []
+        : deepResp.data.details?.visual_analysis?.behavior_findings || [];
       const criticalBehaviors = behaviorFindings.filter(
         (f) => (f.severity || '').toLowerCase() === 'critical',
       );
