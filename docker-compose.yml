@@ -5,7 +5,10 @@ services:
   # API GATEWAY
   # ===========================================
   gateway:
-    image: kong/kong:3.9
+    build:
+      context: ./gateway/kong
+      dockerfile: Dockerfile
+    image: ai-shield-gateway:local
     container_name: ai-shield-gateway
     environment:
       KONG_DATABASE: "off"
@@ -15,8 +18,6 @@ services:
       KONG_PROXY_ERROR_LOG: /dev/stderr
       KONG_ADMIN_ERROR_LOG: /dev/stderr
       KONG_ADMIN_LISTEN: "0.0.0.0:8001"
-    volumes:
-      - ./gateway/kong/kong.yml:/etc/kong/kong.yml:ro
     ports:
       - "8080:8000"      # Proxy port (public)
       - "8443:8443"      # Proxy SSL
@@ -45,8 +46,6 @@ services:
       JWT_SECRET: ${JWT_SECRET:-your-super-secret-jwt-key}
       JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:-your-refresh-secret}
       ENCRYPTION_KEY: ${ENCRYPTION_KEY:-your-32-byte-encryption-key-here}
-    volumes:
-      - backend-logs:/app/logs
     ports:
       - "3000:3000"      # Direct access (for debugging)
     depends_on:
@@ -203,7 +202,10 @@ services:
   # POSTGRESQL DATABASE
   # ===========================================
   postgres:
-    image: postgres:15-alpine
+    build:
+      context: ./scripts
+      dockerfile: Dockerfile.postgres
+    image: ai-shield-postgres:local
     container_name: ai-shield-postgres
     environment:
       POSTGRES_DB: aishield
@@ -211,7 +213,6 @@ services:
       POSTGRES_PASSWORD: ${DB_PASSWORD:-secretpassword}
     volumes:
       - postgres-data:/var/lib/postgresql/data
-      - ./scripts/init-db.sql:/docker-entrypoint-initdb.d/init.sql:ro
     ports:
       - "5432:5432"      # Direct access (for debugging)
     healthcheck:
@@ -292,6 +293,5 @@ volumes:
   postgres-data:
   redis-data:
   ml-cache:
-  backend-logs:
   prometheus-data:
   grafana-data:

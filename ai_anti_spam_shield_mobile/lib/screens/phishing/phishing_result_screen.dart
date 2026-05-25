@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -203,6 +204,16 @@ class PhishingResultScreen extends ConsumerWidget {
                     FadeInUp(
                       duration: const Duration(milliseconds: 650),
                       child: _buildUrlAnalysisSection(result.urlsAnalyzed, isDark),
+                    ),
+                    const SizedBox(height: 16),
+                  ],
+
+                  // Safe-Lab Behavior: what the page actually did when opened
+                  // in the headless Chromium sandbox + WHOIS / SSL / DNS intel.
+                  if (result.deepScan != null && result.deepScan!.hasAnySignal) ...[
+                    FadeInUp(
+                      duration: const Duration(milliseconds: 670),
+                      child: _buildDeepScanSection(result.deepScan!, isDark),
                     ),
                     const SizedBox(height: 16),
                   ],
@@ -485,6 +496,309 @@ class PhishingResultScreen extends ConsumerWidget {
           ),
           const SizedBox(height: 16),
           ...urls.map((url) => _buildUrlItem(url, isDark)),
+        ],
+      ),
+    );
+  }
+
+  Color _severityColor(String severity) {
+    switch (severity.toLowerCase()) {
+      case 'critical':
+        return AppColors.danger;
+      case 'high':
+        return AppColors.danger;
+      case 'medium':
+        return AppColors.warning;
+      case 'low':
+        return AppColors.info;
+      default:
+        return AppColors.warning;
+    }
+  }
+
+  IconData _severityIcon(String severity) {
+    switch (severity.toLowerCase()) {
+      case 'critical':
+        return Icons.dangerous;
+      case 'high':
+        return Icons.warning_amber_rounded;
+      case 'medium':
+        return Icons.info_outline;
+      case 'low':
+        return Icons.info_outline;
+      default:
+        return Icons.warning_amber_rounded;
+    }
+  }
+
+  /// Renders the behavioral / safe-lab analysis section: what the page
+  /// actually did when opened in headless Chromium, plus WHOIS / SSL / DNS
+  /// signals from the domain intelligence pass.
+  Widget _buildDeepScanSection(DeepScan deep, bool isDark) {
+    final textPrimary =
+        isDark ? AppColors.darkTextPrimary : AppColors.textPrimary;
+    final textSecondary =
+        isDark ? AppColors.darkTextSecondary : AppColors.textSecondary;
+
+    Uint8List? screenshotBytes;
+    if (deep.screenshotBase64 != null && deep.screenshotBase64!.isNotEmpty) {
+      try {
+        screenshotBytes = base64Decode(deep.screenshotBase64!);
+      } catch (_) {
+        screenshotBytes = null;
+      }
+    }
+
+    // Heuristic-driven risk lines we'll show as bullet items. "Risky" entries
+    // get a red icon; informational ones (page title, brands seen) are neutral.
+    final List<({IconData icon, Color color, String label, String value})>
+        rows = [];
+
+    if (deep.pageTitle != null && deep.pageTitle!.isNotEmpty) {
+      rows.add((
+        icon: Icons.title,
+        color: AppColors.info,
+        label: 'Page title (as rendered)',
+        value: deep.pageTitle!,
+      ));
+    }
+    if (deep.hasLoginForm) {
+      rows.add((
+        icon: Icons.input,
+        color: AppColors.warning,
+        label: 'Login form detected',
+        value: 'Page contains a sign-in form',
+      ));
+    }
+    if (deep.hasPasswordField) {
+      rows.add((
+        icon: Icons.password,
+        color: AppColors.danger,
+        label: 'Asks for a password',
+        value: 'A password input was rendered on the page',
+      ));
+    }
+    if (deep.pageBrands.isNotEmpty) {
+      rows.add((
+        icon: Icons.business,
+        color: deep.pageBrands.length >= 2
+            ? AppColors.danger
+            : AppColors.warning,
+        label: 'Brand keywords on the page',
+        value: deep.pageBrands.join(', '),
+      ));
+    }
+    final age = deep.domainAge;
+    if (age != null) {
+      final ageStr = age['age_in_days'] != null
+          ? '${age['age_in_days']} days old'
+          : (age['creation_date']?.toString() ?? 'unknown');
+      rows.add((
+        icon: Icons.calendar_today,
+        color: (age['age_in_days'] is num && (age['age_in_days'] as num) < 90)
+            ? AppColors.danger
+            : AppColors.success,
+        label: 'Domain age',
+        value: ageStr,
+      ));
+    }
+    final ssl = deep.sslInfo;
+    if (ssl != null) {
+      final issuer = ssl['issuer']?.toString() ?? 'unknown';
+      final valid = ssl['valid'] == true;
+      rows.add((
+        icon: Icons.lock,
+        color: valid ? AppColors.success : AppColors.danger,
+        label: valid ? 'SSL certificate' : 'SSL problem',
+        value: issuer,
+      ));
+    }
+    final asn = deep.asnInfo;
+    if (asn != null && asn['asn_org'] != null) {
+      rows.add((
+        icon: Icons.dns,
+        color: AppColors.info,
+        label: 'Hosted on',
+        value: asn['asn_org'].toString(),
+      ));
+    }
+    for (final indicator in deep.domainRiskIndicators) {
+      rows.add((
+        icon: Icons.warning_amber_rounded,
+        color: AppColors.warning,
+        label: 'Domain red flag',
+        value: indicator,
+      ));
+    }
+    if (deep.visualError != null && screenshotBytes == null) {
+      rows.add((
+        icon: Icons.info_outline,
+        color: textSecondary,
+        label: 'Page-load note',
+        value: deep.visualError!,
+      ));
+    }
+
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: isDark ? AppColors.darkCard : Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: isDark ? null : AppColors.softShadow(),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: AppColors.primary.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Icon(Icons.science, color: AppColors.primary, size: 20),
+              ),
+              const SizedBox(width: 12),
+              Text(
+                'Safe-Lab Behavior',
+                style: TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.bold,
+                  color: textPrimary,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 6),
+          Text(
+            'We opened the link in an isolated browser and watched what the page did.',
+            style: TextStyle(fontSize: 12, color: textSecondary),
+          ),
+          const SizedBox(height: 14),
+          if (screenshotBytes != null) ...[
+            ClipRRect(
+              borderRadius: BorderRadius.circular(12),
+              child: Image.memory(
+                screenshotBytes,
+                fit: BoxFit.cover,
+                gaplessPlayback: true,
+              ),
+            ),
+            const SizedBox(height: 14),
+          ],
+
+          // Runtime behavior findings (what the page actually DID)
+          if (deep.behaviorFindings.isNotEmpty) ...[
+            Text(
+              "What the page tried to do",
+              style: TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.bold,
+                color: textPrimary,
+              ),
+            ),
+            const SizedBox(height: 8),
+            ...deep.behaviorFindings.map((f) {
+              final color = _severityColor(f.severity);
+              final icon = _severityIcon(f.severity);
+              return Container(
+                margin: const EdgeInsets.only(bottom: 8),
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: color.withValues(alpha: isDark ? 0.12 : 0.06),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: color.withValues(alpha: 0.25)),
+                ),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Icon(icon, color: color, size: 18),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        f.text,
+                        style: TextStyle(
+                          fontSize: 13,
+                          color: textPrimary,
+                          height: 1.35,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            }),
+            const SizedBox(height: 14),
+          ],
+
+          // Redirect chain (only if 2+ hops)
+          if (deep.redirectChain.length >= 2) ...[
+            Text(
+              "Redirect chain",
+              style: TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.bold,
+                color: textPrimary,
+              ),
+            ),
+            const SizedBox(height: 6),
+            ...deep.redirectChain.asMap().entries.map((entry) => Padding(
+                  padding: const EdgeInsets.only(bottom: 4),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text("${entry.key + 1}. ",
+                          style: TextStyle(color: textSecondary, fontSize: 12)),
+                      Expanded(
+                        child: Text(
+                          entry.value,
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: textPrimary,
+                            fontFamily: 'monospace',
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                )),
+            const SizedBox(height: 14),
+          ],
+
+          ...rows.map((r) => Padding(
+                padding: const EdgeInsets.only(bottom: 10),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Icon(r.icon, color: r.color, size: 18),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            r.label,
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                              color: textSecondary,
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            r.value,
+                            style: TextStyle(
+                              fontSize: 13.5,
+                              color: textPrimary,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              )),
         ],
       ),
     );

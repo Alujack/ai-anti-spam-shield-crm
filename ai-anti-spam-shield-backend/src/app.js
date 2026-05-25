@@ -21,7 +21,16 @@ const app = express();
 const server = http.createServer(app);
 
 // Security middleware
-app.use(helmet());
+// Drop upgrade-insecure-requests so http access from LAN IPs (mobile / cross-device dev)
+// doesn't get silently rewritten to https and fail.
+app.use(helmet({
+  contentSecurityPolicy: {
+    directives: {
+      ...helmet.contentSecurityPolicy.getDefaultDirectives(),
+      'upgrade-insecure-requests': null,
+    },
+  },
+}));
 
 // CORS configuration
 app.use(cors(config.cors));

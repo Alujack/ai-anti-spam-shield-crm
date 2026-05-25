@@ -1,9 +1,6 @@
-FROM kong:3.4-alpine
+FROM kong/kong:3.9
 
 # Copy declarative config
-COPY kong.yml /etc/kong/kong.yml
-
-# Validate config on build
-RUN kong config parse /etc/kong/kong.yml
+COPY --chown=kong:kong kong.yml /etc/kong/kong.yml
 
 USER kong

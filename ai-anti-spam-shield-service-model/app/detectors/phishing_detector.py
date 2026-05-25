@@ -153,6 +153,10 @@ class PhishingDetector:
         'verizon', 'att', 'tmobile', 'sprint', 'vodafone', 'comcast', 'spectrum',
         # Other commonly targeted
         'linkedin', 'indeed', 'glassdoor', 'airbnb', 'uber', 'lyft', 'doordash', 'grubhub',
+        # Gaming (heavily phished for account / payment-method theft)
+        'roblox', 'minecraft', 'fortnite', 'steam', 'playstation', 'xbox',
+        'nintendo', 'epicgames', 'riotgames', 'blizzard', 'activision', 'ubisoft',
+        'ea', 'origin', 'battlenet',
     ]
 
     # Suspicious TLDs often used in phishing (expanded)
@@ -176,6 +180,85 @@ class PhishingDetector:
         's.id', 'rotf.lol', 'v.gd', 'qr.ae', 'u.to', 'short.io',
         'rebrand.ly', 'bl.ink', 'shorte.st', 'ouo.io', 'bc.vc',
     ]
+
+    # Free hosting platforms commonly abused for phishing.
+    # Real banks / webmail / payment services never host on these registered domains,
+    # so a credential-related subdomain on one of these is a very strong phishing signal.
+    FREE_HOSTING_DOMAINS = {
+        'weebly.com', 'wixsite.com', 'wix.com', 'glitch.me', 'vercel.app',
+        'netlify.app', 'web.app', 'firebaseapp.com', 'github.io',
+        'gitlab.io', 'pages.dev', 'repl.co', 'replit.dev',
+        '000webhostapp.com', 'blogspot.com', 'wordpress.com',
+        'sites.google.com', 'jimdofree.com', 'webnode.com',
+        'mystrikingly.com', 'square.site', 'godaddysites.com',
+        'yolasite.com', 'wuaze.com', 'rf.gd', 'epizy.com',
+    }
+
+    # Credential-harvest / impersonation tokens that should not appear
+    # in a subdomain of a free-hosting platform.
+    SUSPICIOUS_HOST_TOKENS = {
+        'webmail', 'mail', 'login', 'signin', 'logon', 'secure',
+        'security', 'verify', 'verification', 'account', 'auth',
+        'wallet', 'recovery', 'unlock', 'support', 'update',
+        'billing', 'payment', 'portal', 'admin',
+    }
+
+    # Regional bank brand names not covered by the global KNOWN_BRANDS list.
+    # Kept separate because the strings are short and need contextual triggers
+    # (free hosting or suspicious tokens) to avoid false positives.
+    REGIONAL_BANKS = [
+        'nsb', 'aba', 'acleda', 'wing', 'pipay', 'bakong',  # Cambodia / SE-Asia
+        'maybank', 'cimb', 'rhb', 'ocbc', 'uob', 'dbs',     # Malaysia / Singapore
+        'bdo', 'bpi', 'unionbank', 'metrobank',             # Philippines
+        'kbz', 'ayabank', 'cbbank',                         # Myanmar
+        'scb', 'kasikorn', 'krungsri', 'bangkokbank',       # Thailand
+    ]
+
+    # Registered domains that are known to belong to legitimate brands.
+    # When a scanned URL's registered domain matches an entry here, we suppress
+    # the "brand mentioned" suspicion entirely — the URL *is* the brand. Without
+    # this list, google.com itself gets a small phishing bump because the
+    # word "google" appears in it, capping safety confidence at ~85%.
+    TRUSTED_DOMAINS = {
+        # Google properties
+        'google.com', 'youtube.com', 'gmail.com', 'googleapis.com',
+        'googleusercontent.com', 'gstatic.com', 'blogger.com',
+        # Microsoft
+        'microsoft.com', 'live.com', 'outlook.com', 'office.com',
+        'office365.com', 'onedrive.com', 'bing.com', 'msn.com',
+        'sharepoint.com', 'azure.com', 'azureedge.net', 'xbox.com',
+        # Apple
+        'apple.com', 'icloud.com', 'itunes.com', 'me.com',
+        # Meta / Facebook
+        'facebook.com', 'fb.com', 'instagram.com', 'whatsapp.com',
+        'messenger.com', 'meta.com',
+        # E-commerce / payments
+        'amazon.com', 'amazon.co.uk', 'ebay.com', 'paypal.com',
+        'stripe.com', 'shopify.com', 'etsy.com', 'aliexpress.com',
+        'walmart.com', 'target.com',
+        # Banking (US)
+        'chase.com', 'wellsfargo.com', 'bankofamerica.com',
+        'citibank.com', 'usbank.com', 'capitalone.com',
+        # Streaming / social
+        'netflix.com', 'spotify.com', 'hulu.com', 'disney.com',
+        'twitter.com', 'x.com', 'linkedin.com', 'reddit.com',
+        'tiktok.com', 'snapchat.com', 'discord.com', 'twitch.tv',
+        # Productivity / dev
+        'dropbox.com', 'adobe.com', 'zoom.us', 'slack.com',
+        'github.com', 'gitlab.com', 'bitbucket.org', 'stackoverflow.com',
+        'notion.so', 'figma.com', 'docusign.com',
+        # Telecom / shipping / gov
+        'verizon.com', 'att.com', 'tmobile.com',
+        'fedex.com', 'ups.com', 'dhl.com', 'usps.com',
+        'irs.gov',
+        # Gaming
+        'roblox.com', 'minecraft.net', 'steampowered.com',
+        'playstation.com', 'xbox.com', 'nintendo.com',
+        # Crypto (the real exchanges)
+        'coinbase.com', 'binance.com', 'kraken.com',
+        # Wikipedia / news
+        'wikipedia.org', 'wikimedia.org',
+    }
 
     # Urgency patterns (more comprehensive + generalized)
     URGENCY_PATTERNS = [
@@ -910,6 +993,23 @@ class PhishingDetector:
                 suffix = extracted.suffix.lower()
                 subdomain = extracted.subdomain.lower() if extracted.subdomain else ''
 
+                # Short-circuit for known-legit registered domains. Real
+                # google.com / paypal.com / microsoft.com etc. should never
+                # accumulate "brand mention" suspicion just because their own
+                # name appears in their URL. Skip the whole static rule set
+                # for these; if anything wraps them in a phishing URL (e.g.
+                # google.evil.com), tldextract would resolve the registered
+                # domain to evil.com which isn't in the trust list.
+                trust_check_domain = f"{domain}.{suffix}" if suffix else domain
+                if trust_check_domain in self.TRUSTED_DOMAINS:
+                    results.append(URLAnalysisResult(
+                        url=url,
+                        is_suspicious=False,
+                        score=0.0,
+                        reasons=[f"Recognized as legitimate domain '{trust_check_domain}'"],
+                    ))
+                    continue
+
                 # Check suspicious TLD
                 if suffix in self.SUSPICIOUS_TLDS:
                     score += 0.3
@@ -965,12 +1065,130 @@ class PhishingDetector:
                     score += 0.25
                     reasons.append(f"Excessive subdomain depth ({len(subdomain_parts)} levels)")
 
+                # Free-hosting-platform abuse: credential or brand tokens in a
+                # subdomain on a known free site builder (weebly, wix, github.io...).
+                # Catches cases like `newsbwebmail.weebly.com` where the parent
+                # domain has good reputation but the subdomain is a phishing kit.
+                registered_domain = f"{domain}.{suffix}" if suffix else domain
+                if registered_domain in self.FREE_HOSTING_DOMAINS and subdomain:
+                    # Suspicious tokens use substring match — these words (webmail,
+                    # login, secure...) are long enough that incidental matches
+                    # against legitimate Weebly sites are rare.
+                    sub_joined = subdomain.replace('-', '').replace('_', '')
+                    matched_tokens = [
+                        t for t in self.SUSPICIOUS_HOST_TOKENS if t in sub_joined
+                    ]
+                    if matched_tokens:
+                        # Scored high enough that this single signal alone clears the
+                        # 0.32 URL-phishing threshold in the ensemble — credential-harvest
+                        # on a free-hosting platform is essentially never legitimate.
+                        score += 0.6
+                        reasons.append(
+                            f"Credential-harvest token(s) '{','.join(matched_tokens[:3])}' "
+                            f"in subdomain of free-hosting platform '{registered_domain}'"
+                        )
+                    # Regional-bank tokens are short (3-4 chars) so we only match
+                    # them as whole tokens after splitting the subdomain — avoids
+                    # false positives like 'database' matching 'aba'.
+                    sub_tokens = set(re.split(r'[-_.]+', subdomain))
+                    matched_banks = [b for b in self.REGIONAL_BANKS if b in sub_tokens]
+                    if matched_banks:
+                        score += 0.55
+                        reasons.append(
+                            f"Regional bank brand '{matched_banks[0]}' impersonated "
+                            f"on free-hosting platform '{registered_domain}'"
+                        )
+
                 # Check for random-looking domain (high entropy)
                 if len(domain) > 8:
                     entropy = self._calculate_entropy(domain)
                     if entropy > 3.5:
                         score += 0.2
                         reasons.append("Domain appears randomly generated")
+
+                # Long, random-looking subdomain. Phishing kits frequently use
+                # 15+ char subdomains stuffed with brand/transaction tokens or
+                # random gibberish (e.g. `nnewsdana-lyanindonx.safaat.com`).
+                #
+                # Skip when the subdomain is just hyphen-separated real-looking
+                # word segments (e.g. `cambotix-solutions.vercel.app` — a legit
+                # company name). Heuristic: hyphenated AND every segment is
+                # pronounceable. Pronounceable = ≥3 chars, has at least one
+                # vowel, and doesn't start with a doubled consonant (real
+                # English words almost never start with `nn`, `tt`, `rr`,
+                # while DGA gibberish like `nnewsdana` often does).
+                if len(subdomain) >= 14:
+                    segments = subdomain.split('-')
+                    def _segment_looks_word_like(s):
+                        if len(s) < 3:
+                            return False
+                        if not any(v in s for v in 'aeiou'):
+                            return False
+                        # Doubled-consonant start: e.g. 'nnewsdana', 'rrand', 'ttok'
+                        if len(s) >= 2 and s[0] == s[1] and s[0] not in 'aeiou':
+                            return False
+                        return True
+                    looks_like_words = (
+                        len(segments) >= 2
+                        and all(_segment_looks_word_like(s) for s in segments)
+                    )
+                    sub_entropy = self._calculate_entropy(subdomain)
+                    entropy_floor = 3.0 if len(subdomain) >= 15 else 3.3
+                    if sub_entropy > entropy_floor and not looks_like_words:
+                        # Lower weight than before (0.15 not 0.25) — this signal
+                        # alone shouldn't clear the 0.25 is_suspicious threshold.
+                        # It only matters when it co-occurs with another red flag
+                        # (free hosting, HTTP + payment tokens, brand in path).
+                        score += 0.15
+                        reasons.append(
+                            f"Long random-looking subdomain ({len(subdomain)} chars, "
+                            f"entropy {sub_entropy:.1f})"
+                        )
+
+                # Brand name impersonated in URL PATH (not subdomain).
+                # Phishing trick: park a generic short domain and stuff the brand
+                # into the path like `nlink.at/www_roblox_com_users`. A real
+                # brand never advertises itself this way.
+                try:
+                    from urllib.parse import urlparse
+                    parsed = urlparse(url)
+                    path_lower = parsed.path.lower() if parsed.path else ''
+                except Exception:
+                    path_lower = ''
+                if path_lower and len(path_lower) > 3:
+                    # Normalize underscores to spaces — `_` is a word char in regex
+                    # so `\b(roblox)\b` won't fire on `_roblox_`. Real paths use
+                    # `_` as a separator, so this just helps the pattern match.
+                    path_normalized = path_lower.replace('_', ' ').replace('-', ' ')
+                    brand_in_path = self.brand_pattern.search(path_normalized)
+                    if brand_in_path:
+                        brand_hit = brand_in_path.group().lower()
+                        # Only flag if the brand isn't already the registered domain
+                        # (e.g. `paypal.com/something` is fine, `nlink.at/...paypal...` isn't)
+                        if brand_hit not in domain and brand_hit not in suffix:
+                            score += 0.4
+                            reasons.append(
+                                f"Brand '{brand_hit}' embedded in URL path of "
+                                f"unrelated domain '{registered_domain}'"
+                            )
+
+                # Plain HTTP (not HTTPS) combined with credential/payment tokens
+                # anywhere in the URL. Legitimate banking/payment/login flows
+                # are HTTPS-only in 2026; HTTP+sensitive-token is a strong tell.
+                if url_lower.startswith('http://'):
+                    http_red_flags = [
+                        'login', 'signin', 'logon', 'secure', 'verify',
+                        'account', 'auth', 'wallet', 'bank', 'pay',
+                        'paylater', 'payment', 'billing', 'invoice',
+                        'webmail', 'mail',
+                    ]
+                    http_flag_hits = [t for t in http_red_flags if t in url_lower]
+                    if http_flag_hits:
+                        score += 0.3
+                        reasons.append(
+                            f"Plain HTTP with credential/payment tokens "
+                            f"({', '.join(http_flag_hits[:3])})"
+                        )
 
             # Check for URL shortener
             if any(shortener in url_lower for shortener in self.URL_SHORTENERS):
@@ -1224,9 +1442,21 @@ class PhishingDetector:
         # Brand score with confidence
         brand_score = brand_result.similarity_score if brand_result.detected else 0.0
 
-        # Check which components are actually available/working
-        ml_available = self.ml_model is not None and ml_score != 0.5
-        transformer_available = self.transformer_model is not None and transformer_score != 0.5
+        # Check which components are actually available/working. A model is
+        # "available" only if it expressed an actual opinion — score not stuck
+        # at the default 0.5 AND not collapsed to ~0 (which is what happens
+        # when the model has nothing to say about a bare URL string).
+        # Without this, google.com scored 0.15 phishing just because the ML
+        # model's neutral 0.5 default got weighted at 30% in the ensemble.
+        ml_available = (
+            self.ml_model is not None
+            and abs(ml_score - 0.5) > 0.05
+        )
+        transformer_available = (
+            self.transformer_model is not None
+            and 0.05 < transformer_score < 0.95
+            and abs(transformer_score - 0.5) > 0.05
+        )
         has_urls = len(url_results) > 0
 
         # Adaptive weights based on what detection methods are active
@@ -1296,6 +1526,13 @@ class PhishingDetector:
         # Multiple suspicious URLs
         if url_suspicious_count >= 2:
             score = max(score, 0.65)
+
+        # Single URL with strong phishing signal — prevents the ensemble from
+        # diluting a high-confidence URL verdict (e.g. free-hosting credential
+        # abuse, IP-in-URL, brand impersonation) when other layers see only the
+        # bare URL string and have nothing to score against.
+        if url_score >= 0.55:
+            score = max(score, 0.55)
 
         # Very high rule-based score (multiple phishing patterns)
         if rule_score > 0.5:

@@ -17,6 +17,12 @@ COPY app/requirements.txt .
 RUN pip install --no-cache-dir --upgrade pip && \
     pip install --no-cache-dir -r requirements.txt
 
+# Install Playwright Chromium and its OS-level dependencies. Required for
+# the dynamic URL analysis ("safe lab" detonation in intel/screenshot_analyzer.py)
+# — opens the URL in a headless browser, screenshots it, and inspects DOM for
+# login forms / brand impersonation.
+RUN playwright install --with-deps chromium
+
 # Download NLTK data
 RUN python -c "import nltk; nltk.download('stopwords'); nltk.download('punkt'); nltk.download('punkt_tab')"
 

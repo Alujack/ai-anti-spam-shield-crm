@@ -184,6 +184,157 @@ extension PhishingTypeExtension on PhishingType {
   }
 }
 
+/// Behavioral analysis from the safe-lab deep scan. Populated when the backend
+/// runs the URL through a headless Chromium sandbox and Domain Intelligence
+/// service. Fields default to null when the deep scan didn't run or failed.
+/// A single observation the safe lab made while opening the URL. The backend
+/// builds these on the Python side so the mobile just renders them.
+class BehaviorFinding {
+  final String severity; // 'critical' | 'high' | 'medium' | 'low'
+  final String text;
+  const BehaviorFinding({required this.severity, required this.text});
+  factory BehaviorFinding.fromJson(Map<String, dynamic> json) => BehaviorFinding(
+        severity: (json['severity'] ?? 'medium').toString(),
+        text: (json['text'] ?? '').toString(),
+      );
+}
+
+class DeepScan {
+  final String? screenshotBase64;
+  final String? pageTitle;
+  final bool hasLoginForm;
+  final bool hasPasswordField;
+  final List<String> pageBrands;
+  final num? visualRiskScore;
+  final String? visualError;
+  final Map<String, dynamic>? domainAge;
+  final Map<String, dynamic>? sslInfo;
+  final Map<String, dynamic>? asnInfo;
+  final Map<String, dynamic>? dnsInfo;
+  final List<String> domainRiskIndicators;
+  final num? riskScore;
+
+  // Runtime behavior observed by the safe lab
+  final List<Map<String, dynamic>> permissionRequests;
+  final List<Map<String, dynamic>> clipboardAttempts;
+  final List<Map<String, dynamic>> forms;
+  final List<Map<String, dynamic>> crossOriginFormPosts;
+  final List<Map<String, dynamic>> iframes;
+  final List<Map<String, dynamic>> hiddenIframes;
+  final List<String> redirectChain;
+  final String? finalUrl;
+  final List<Map<String, dynamic>> downloads;
+  final List<Map<String, dynamic>> dialogs;
+  final List<String> thirdPartyScriptOrigins;
+  final List<String> minerScripts;
+  final List<BehaviorFinding> behaviorFindings;
+
+  const DeepScan({
+    this.screenshotBase64,
+    this.pageTitle,
+    this.hasLoginForm = false,
+    this.hasPasswordField = false,
+    this.pageBrands = const [],
+    this.visualRiskScore,
+    this.visualError,
+    this.domainAge,
+    this.sslInfo,
+    this.asnInfo,
+    this.dnsInfo,
+    this.domainRiskIndicators = const [],
+    this.riskScore,
+    this.permissionRequests = const [],
+    this.clipboardAttempts = const [],
+    this.forms = const [],
+    this.crossOriginFormPosts = const [],
+    this.iframes = const [],
+    this.hiddenIframes = const [],
+    this.redirectChain = const [],
+    this.finalUrl,
+    this.downloads = const [],
+    this.dialogs = const [],
+    this.thirdPartyScriptOrigins = const [],
+    this.minerScripts = const [],
+    this.behaviorFindings = const [],
+  });
+
+  bool get hasAnySignal =>
+      screenshotBase64 != null ||
+      pageTitle != null ||
+      hasLoginForm ||
+      hasPasswordField ||
+      pageBrands.isNotEmpty ||
+      domainAge != null ||
+      sslInfo != null ||
+      domainRiskIndicators.isNotEmpty ||
+      behaviorFindings.isNotEmpty ||
+      permissionRequests.isNotEmpty ||
+      clipboardAttempts.isNotEmpty ||
+      redirectChain.length > 1 ||
+      crossOriginFormPosts.isNotEmpty ||
+      hiddenIframes.isNotEmpty ||
+      downloads.isNotEmpty ||
+      minerScripts.isNotEmpty;
+
+  factory DeepScan.fromJson(Map<String, dynamic> json) {
+    Map<String, dynamic>? asMap(dynamic v) =>
+        v is Map ? Map<String, dynamic>.from(v) : null;
+    List<Map<String, dynamic>> asMapList(dynamic v) => v is List
+        ? v
+            .whereType<Map>()
+            .map((e) => Map<String, dynamic>.from(e))
+            .toList()
+        : <Map<String, dynamic>>[];
+    List<String> asStringList(dynamic v) => v is List
+        ? v.map((e) => e?.toString() ?? '').where((s) => s.isNotEmpty).toList()
+        : <String>[];
+    return DeepScan(
+      screenshotBase64: json['screenshotBase64'] ?? json['screenshot_base64'],
+      pageTitle: json['pageTitle'] ?? json['page_title'],
+      hasLoginForm: json['hasLoginForm'] ?? json['has_login_form'] ?? false,
+      hasPasswordField:
+          json['hasPasswordField'] ?? json['has_password_field'] ?? false,
+      pageBrands: asStringList(json['pageBrands'] ?? json['page_brands']),
+      visualRiskScore: (json['visualRiskScore'] ?? json['visual_risk_score']) as num?,
+      visualError: json['visualError'] ?? json['visual_error'],
+      domainAge: asMap(json['domainAge'] ?? json['domain_age']),
+      sslInfo: asMap(json['sslInfo'] ?? json['ssl_info']),
+      asnInfo: asMap(json['asnInfo'] ?? json['asn_info']),
+      dnsInfo: asMap(json['dnsInfo'] ?? json['dns_info']),
+      domainRiskIndicators: asStringList(
+          json['domainRiskIndicators'] ?? json['domain_risk_indicators']),
+      riskScore: (json['riskScore'] ?? json['risk_score']) as num?,
+      permissionRequests: asMapList(
+          json['permissionRequests'] ?? json['permission_requests']),
+      clipboardAttempts: asMapList(
+          json['clipboardAttempts'] ?? json['clipboard_attempts']),
+      forms: asMapList(json['forms']),
+      crossOriginFormPosts: asMapList(
+          json['crossOriginFormPosts'] ?? json['cross_origin_form_posts']),
+      iframes: asMapList(json['iframes']),
+      hiddenIframes:
+          asMapList(json['hiddenIframes'] ?? json['hidden_iframes']),
+      redirectChain:
+          asStringList(json['redirectChain'] ?? json['redirect_chain']),
+      finalUrl: json['finalUrl'] ?? json['final_url'],
+      downloads: asMapList(json['downloads']),
+      dialogs: asMapList(json['dialogs']),
+      thirdPartyScriptOrigins: asStringList(
+          json['thirdPartyScriptOrigins'] ??
+              json['third_party_script_origins']),
+      minerScripts:
+          asStringList(json['minerScripts'] ?? json['miner_scripts']),
+      behaviorFindings: (json['behaviorFindings'] ?? json['behavior_findings'] ?? [])
+          is List
+          ? ((json['behaviorFindings'] ?? json['behavior_findings'] ?? []) as List)
+              .whereType<Map>()
+              .map((e) => BehaviorFinding.fromJson(Map<String, dynamic>.from(e)))
+              .toList()
+          : <BehaviorFinding>[],
+    );
+  }
+}
+
 /// Complete phishing detection result
 class PhishingResult {
   final bool isPhishing;
@@ -202,6 +353,7 @@ class PhishingResult {
   final List<PhishingDangerCause> dangerCauses; // Detailed danger explanations
   final String riskLevel; // 'NONE', 'MEDIUM', 'HIGH', 'CRITICAL'
   final String confidenceLabel; // 'Phishing Confidence' or 'Safety Confidence'
+  final DeepScan? deepScan; // Behavioral analysis from safe-lab Chromium sandbox
 
   PhishingResult({
     required this.isPhishing,
@@ -220,6 +372,7 @@ class PhishingResult {
     this.dangerCauses = const [],
     this.riskLevel = 'NONE',
     this.confidenceLabel = 'Safety Confidence',
+    this.deepScan,
   });
 
   factory PhishingResult.fromJson(Map<String, dynamic> json) {
@@ -252,6 +405,9 @@ class PhishingResult {
           .toList(),
       riskLevel: json['risk_level'] ?? json['threatLevel'] ?? json['threat_level'] ?? 'NONE',
       confidenceLabel: json['confidence_label'] ?? ((json['isPhishing'] ?? json['is_phishing'] ?? false) ? 'Phishing Confidence' : 'Safety Confidence'),
+      deepScan: (json['deep_scan'] ?? json['deepScan']) is Map
+          ? DeepScan.fromJson(Map<String, dynamic>.from(json['deep_scan'] ?? json['deepScan']))
+          : null,
     );
   }
 

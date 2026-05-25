@@ -1,8 +1,17 @@
 const axios = require('axios');
+const crypto = require('crypto');
 const config = require('../config');
 const prisma = require('../config/database');
+const { redis } = require('../config/redis');
 const ApiError = require('../utils/apiError');
 const logger = require('../utils/logger');
+
+// Deep-scan cache: URL -> full deep-analysis result.
+// 1h TTL is long enough to make re-scans instant for a demo, short enough
+// that a freshly weaponized URL (e.g. one that just got taken down or that
+// changes its phishing kit) isn't served from stale cache forever.
+const DEEP_SCAN_CACHE_TTL_SECONDS = 60 * 60;
+const DEEP_SCAN_TIMEOUT_MS = 60_000;
 
 /**
  * Phishing Detection Service
@@ -67,7 +76,7 @@ class PhishingService {
         dangerCauses.push({
           type: 'phishing_detected',
           title: 'Phishing Detected',
-          description: `Our AI detected this as a phishing attempt with ${(rawPhishingConfidence * 100).toFixed(1)}% confidence. This exceeds our ${(DETECTION_THRESHOLD * 100)}% threshold for phishing detection.`,
+          description: `Our AI detected this as a phishing attempt with ${(rawPhishingConfidence * 100).toFixed(1)}% confidence. This exceeds our ${(DETECTION_THRESHOLD * 100).toFixed(0)}% threshold for phishing detection.`,
           severity: rawPhishingConfidence >= 0.85 ? 'critical' : rawPhishingConfidence >= 0.75 ? 'high' : 'medium'
         });
 
@@ -188,16 +197,65 @@ class PhishingService {
    */
   async scanUrlForPhishing(url, userId = null) {
     try {
-      logger.info('Scanning URL for phishing', { url: url?.substring(0, 50) });
+      logger.info('Scanning URL for phishing (deep)', { url: url?.substring(0, 50) });
 
-      const response = await axios.post(
-        `${this.aiServiceUrl}/scan-url`,
-        { url },
-        {
-          timeout: this.timeout,
-          headers: { 'Content-Type': 'application/json' }
+      // Cache lookup: SHA-256 of the URL is the key. Hash (vs raw URL) keeps
+      // Redis keys a fixed length and avoids leaking the URL in key listings.
+      const cacheKey = `phish:deep:${crypto.createHash('sha256').update(url).digest('hex')}`;
+      let cached = null;
+      try {
+        cached = await redis.get(cacheKey);
+      } catch (cacheErr) {
+        // Cache failures are non-fatal — fall through to a live deep scan.
+        logger.warn('Deep-scan cache lookup failed', { error: cacheErr.message });
+      }
+      if (cached) {
+        logger.info('Deep-scan cache hit', { url: url?.substring(0, 50) });
+        const result = JSON.parse(cached);
+        result.cached = true;
+        if (userId) {
+          await this.savePhishingScanHistory(userId, url, result, url);
         }
-      );
+        return result;
+      }
+
+      // Live deep scan: opens the URL in a headless Chromium "safe lab",
+      // captures a screenshot, inspects DOM for login/password forms, gathers
+      // WHOIS / SSL / DNS / ASN signals, then runs the risk scorer.
+      //
+      // Run the static URL analysis in parallel — it produces the per-URL
+      // reasons (credential-harvest tokens, brand-in-path, long random
+      // subdomain, etc.) that the deep endpoint's risk_scorer doesn't surface
+      // on its own. Merging gives the user both behavioral evidence and
+      // pattern-based reasoning.
+      const [staticResp, deepResp] = await Promise.all([
+        axios.post(
+          `${this.aiServiceUrl}/scan-url`,
+          { url },
+          { timeout: this.timeout, headers: { 'Content-Type': 'application/json' } }
+        ).catch((e) => {
+          logger.warn('Static URL scan failed during deep scan', { error: e.message });
+          return { data: {} };
+        }),
+        axios.post(
+          `${this.aiServiceUrl}/analyze-url-deep`,
+          { url, include_domain_intel: true, include_screenshot: true },
+          { timeout: DEEP_SCAN_TIMEOUT_MS, headers: { 'Content-Type': 'application/json' } }
+        ),
+      ]);
+
+      // Use the deep endpoint's `details` as the canonical extras and overlay
+      // the static analyzer's per-URL reasons / indicators.
+      const response = {
+        data: {
+          ...staticResp.data,
+          ...deepResp.data,
+          details: {
+            ...(staticResp.data.details || {}),
+            ...(deepResp.data.details || {}),
+          },
+        },
+      };
 
       /**
        * Confidence Interpretation:
@@ -206,14 +264,46 @@ class PhishingService {
        * - Low raw confidence (e.g., 0.15) = 15% likely to be phishing = 85% likely to be SAFE URL
        *
        * Detection Logic:
-       * - If phishing confidence >= 0.65 (65%) → PHISHING URL DETECTED with that confidence
-       * - If phishing confidence < 0.65 → SAFE URL with (1 - phishing_confidence) as safety confidence
+       * - If phishing confidence >= 0.55 (55%) → PHISHING URL DETECTED with that confidence
+       * - If phishing confidence < 0.55 → SAFE URL with (1 - phishing_confidence) as safety confidence
+       *
+       * 0.55 matches the floor the ML ensemble clamps to when a single URL
+       * shows a strong phishing signal (free-hosting credential abuse,
+       * IP-in-URL, brand impersonation). Using 0.65 here silently overruled
+       * those high-confidence URL-level verdicts.
        */
-      const DETECTION_THRESHOLD = 0.65;
-      const rawPhishingConfidence = response.data.confidence || 0;
+      const DETECTION_THRESHOLD = 0.55;
+      // CONFIDENCE SEMANTICS — these two endpoints disagree on what "confidence" means:
+      // - /scan-url's confidence IS the phishing probability (0.15 = "15% likely phishing")
+      // - /analyze-url-deep's confidence is the risk_scorer's CERTAINTY in its
+      //   threat_level verdict (0.9 = "90% sure of the NONE/HIGH/etc verdict"), not
+      //   the phishing probability. So we can't just max() them together.
+      //
+      // Use static.confidence as the displayed phishing probability, and treat
+      // deep.is_phishing as a boolean override that pushes the verdict to MEDIUM+
+      // even if static was undecided (catches cases where pattern matching missed
+      // but domain age / login form / DOM brand impersonation caught it).
+      const staticConfidence = Number(staticResp.data.confidence) || 0;
+      const deepIsPhishing = Boolean(deepResp.data.is_phishing);
+      const deepThreat = (deepResp.data.threat_level || 'NONE').toUpperCase();
 
-      // Determine if it's phishing based on the phishing confidence
-      const isPhishing = rawPhishingConfidence >= DETECTION_THRESHOLD;
+      // Pull risk_score (0-100) from risk_assessment for a soft probability bump
+      // when the deep layer found real signals but didn't cross its own threshold.
+      const riskScore100 = Number(
+        deepResp.data.details?.risk_assessment?.total_score
+      ) || 0;
+      const deepPhishingProb = riskScore100 / 100;
+
+      const rawPhishingConfidence = Math.max(
+        staticConfidence,
+        deepIsPhishing ? Math.max(0.6, deepPhishingProb) : 0,
+      );
+
+      const isPhishing =
+        Boolean(staticResp.data.is_phishing) ||
+        deepIsPhishing ||
+        ['MEDIUM', 'HIGH', 'CRITICAL'].includes(deepThreat) ||
+        rawPhishingConfidence >= DETECTION_THRESHOLD;
 
       // Calculate display confidence:
       // - If phishing: show phishing confidence (e.g., 85% phishing)
@@ -228,7 +318,7 @@ class PhishingService {
         dangerCauses.push({
           type: 'phishing_url_detected',
           title: 'Phishing URL Detected',
-          description: `Our AI detected this as a phishing URL with ${(rawPhishingConfidence * 100).toFixed(1)}% confidence. This exceeds our ${(DETECTION_THRESHOLD * 100)}% threshold for phishing detection.`,
+          description: `Our AI detected this as a phishing URL with ${(rawPhishingConfidence * 100).toFixed(1)}% confidence. This exceeds our ${(DETECTION_THRESHOLD * 100).toFixed(0)}% threshold for phishing detection.`,
           severity: rawPhishingConfidence >= 0.85 ? 'critical' : rawPhishingConfidence >= 0.75 ? 'high' : 'medium'
         });
 
@@ -241,7 +331,7 @@ class PhishingService {
           });
         }
 
-        if (rawPhishingConfidence >= 0.65 && rawPhishingConfidence < 0.85) {
+        if (rawPhishingConfidence >= DETECTION_THRESHOLD && rawPhishingConfidence < 0.85) {
           dangerCauses.push({
             type: 'moderate_phishing_confidence',
             title: 'Moderate Phishing URL Risk',
@@ -348,6 +438,43 @@ class PhishingService {
             : 'CAUTION: This URL has suspicious characteristics that suggest phishing. If you must visit, ensure you do not enter any sensitive information. Verify the site\'s authenticity before proceeding.'
         : response.data.recommendation || 'This URL appears to be safe. However, always verify you are on the correct domain before entering sensitive information.';
 
+      // Deep-scan extras pulled out of the merged details for direct
+      // consumption by the mobile UI (screenshot card, "page contains login
+      // form" badge, domain-age line, etc.). All optional — if chromium fails
+      // or the URL refuses to load, these stay null.
+      const visual = response.data.details?.visual_analysis || {};
+      const domainIntel = response.data.details?.domain_intelligence || null;
+      const riskAssessment = response.data.details?.risk_assessment || null;
+      const deepScan = {
+        screenshotBase64: visual.screenshot_base64 || null,
+        pageTitle: visual.page_title || null,
+        hasLoginForm: visual.has_login_form || false,
+        hasPasswordField: visual.has_password_field || false,
+        pageBrands: visual.brand_indicators || [],
+        visualRiskScore: visual.visual_risk_score ?? null,
+        visualError: visual.error || null,
+        domainAge: domainIntel?.domain_age || null,
+        sslInfo: domainIntel?.ssl_info || null,
+        asnInfo: domainIntel?.asn_info || null,
+        dnsInfo: domainIntel?.dns_info || null,
+        domainRiskIndicators: domainIntel?.risk_indicators || [],
+        riskScore: riskAssessment?.total_score ?? null,
+        // Safe-lab behavioral observations
+        permissionRequests: visual.permission_requests || [],
+        clipboardAttempts: visual.clipboard_attempts || [],
+        forms: visual.forms || [],
+        crossOriginFormPosts: visual.cross_origin_form_posts || [],
+        iframes: visual.iframes || [],
+        hiddenIframes: visual.hidden_iframes || [],
+        redirectChain: visual.redirect_chain || [],
+        finalUrl: visual.final_url || null,
+        downloads: visual.downloads || [],
+        dialogs: visual.dialogs || [],
+        thirdPartyScriptOrigins: visual.third_party_script_origins || [],
+        minerScripts: visual.miner_scripts || [],
+        behaviorFindings: visual.behavior_findings || [],
+      };
+
       const result = {
         isPhishing: isPhishing,
         confidence: displayConfidence,
@@ -364,8 +491,19 @@ class PhishingService {
         detection_threshold: DETECTION_THRESHOLD,
         danger_causes: dangerCauses,
         risk_level: calculatedThreatLevel,
-        confidence_label: isPhishing ? 'Phishing Confidence' : 'Safety Confidence'
+        confidence_label: isPhishing ? 'Phishing Confidence' : 'Safety Confidence',
+        scan_mode: 'deep',
+        deep_scan: deepScan,
+        cached: false,
       };
+
+      // Cache the result so a re-scan of the same URL is instant. Wrapped in
+      // try/catch because cache write failures shouldn't fail the user's scan.
+      try {
+        await redis.setex(cacheKey, DEEP_SCAN_CACHE_TTL_SECONDS, JSON.stringify(result));
+      } catch (cacheErr) {
+        logger.warn('Deep-scan cache write failed', { error: cacheErr.message });
+      }
 
       // Save to history if user is authenticated
       if (userId) {
@@ -374,7 +512,7 @@ class PhishingService {
 
       return result;
     } catch (error) {
-      logger.error('URL phishing scan failed', { error: error.message });
+      logger.error('URL phishing scan failed', { error: error.message, stack: error.stack });
       throw ApiError.internal('Failed to scan URL for phishing');
     }
   }

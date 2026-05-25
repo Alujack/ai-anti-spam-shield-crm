@@ -41,7 +41,17 @@
       "Bash(/usr/bin/curl -s -m 10 https://aiscamshield.codes/css/style.css)",
       "Bash(rsync -a --delete /opt/ai-anti-spam-shield-crm/landing-page/ /opt/ai-anti-spam-shield-crm/ai-anti-spam-shield-backend/public/landing-page/)",
       "Bash(/usr/bin/curl -s -m 10 https://aiscamshield.codes/)",
-      "Bash(/usr/bin/curl -s -m 10 https://aiscamshield.codes/js/main.js)"
+      "Bash(/usr/bin/curl -s -m 10 https://aiscamshield.codes/js/main.js)",
+      "Bash(openssl rand *)",
+      "Bash(tee /tmp/aishield-build.log)",
+      "Bash(git -C /opt/ai-anti-spam-shield-crm diff --stat HEAD)",
+      "Bash(lsof -iTCP:8000 -sTCP:LISTEN)",
+      "Bash(lsof -iTCP:3000 -sTCP:LISTEN)",
+      "Bash(git -C /opt/ai-anti-spam-shield-crm diff HEAD -- ai-anti-spam-shield-service-model/app/detectors/phishing_detector.py)",
+      "Bash(awk '/^  ml-service:/,/^  [a-z]/' docker-compose.yml)",
+      "Bash(TRAIN_MODELS=false docker compose build ml-service)",
+      "Bash(TRAIN_MODELS=false docker compose build ml-service backend)",
+      "Bash(tee /tmp/aishield-rebuild.log)"
     ]
   }
 }
