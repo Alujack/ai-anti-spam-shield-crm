@@ -16,7 +16,32 @@
       "Read(//Users/microstore/.ssh/**)",
       "Bash(git -C /opt/ai-anti-spam-shield-crm diff --cached --name-only)",
       "Bash(git -C /opt/ai-anti-spam-shield-crm restore --staged .claude/settings.json ai_anti_spam_shield_mobile/android/app/src/main/AndroidManifest.xml landing-page/css/style.css landing-page/index.html landing-page/js/main.js landing-page/success.html)",
-      "Bash(git -C /opt/ai-anti-spam-shield-crm log --oneline -3)"
+      "Bash(git -C /opt/ai-anti-spam-shield-crm log --oneline -3)",
+      "Bash(timeout 6 bash -c \"echo | nc -v 165.245.182.155 443\")",
+      "Bash(timeout 6 bash -c \"echo | nc -v 165.245.182.155 80\")",
+      "Bash(nc -vz -w 5 165.245.182.155 80)",
+      "Bash(nc -vz -w 5 165.245.182.155 443)",
+      "Bash(nc -vz -w 5 165.245.182.155 22)",
+      "Bash(git -C /opt/ai-anti-spam-shield-crm log -1 --format=\"%h %s\" -- landing-page/)",
+      "Bash(git -C /opt/ai-anti-spam-shield-crm log -1 --format=\"%h %s\" -- ai-anti-spam-shield-backend/public/landing-page/)",
+      "Bash(rsync -a --delete landing-page/ ai-anti-spam-shield-backend/public/landing-page/)",
+      "Bash(/usr/bin/curl -s -o /dev/null -w \"HTTP %{http_code}  total=%{time_total}s\\\\n\" -X POST -H \"Content-Type: application/json\" -d '{\"email\":\"x@example.com\",\"password\":\"x\"}' https://aiscamshield.codes/api/v1/users/login -m 30)",
+      "Bash(/usr/bin/curl -s -o /dev/null -w \"HTTP %{http_code}  total=%{time_total}s\\\\n\" https://aiscamshield.codes/ -m 30)",
+      "Bash(/usr/bin/nc -vz -w 5 165.245.182.155 22)",
+      "Bash(/usr/bin/nc -vz -w 5 165.245.182.155 80)",
+      "Bash(/usr/bin/nc -vz -w 5 165.245.182.155 443)",
+      "Bash(/usr/bin/curl -s -m 8 -o /dev/null -w \"HTTP %{http_code}  total=%{time_total}s\\\\n\" http://aiscamshield.codes/api/v1/)",
+      "Bash(/usr/bin/curl -s -o /dev/null -w \"https://aiscamshield.codes/api/v1/        HTTP %{http_code}  %{time_total}s\\\\n\" -m 15 https://aiscamshield.codes/api/v1/)",
+      "Bash(/usr/bin/curl -s -o /dev/null -w \"POST /users/login                              HTTP %{http_code}  %{time_total}s\\\\n\" -m 15 -X POST -H \"Content-Type: application/json\" -d '{\"email\":\"x@example.com\",\"password\":\"x\"}' https://aiscamshield.codes/api/v1/users/login)",
+      "Bash(/usr/bin/curl -s -o /dev/null -w \"https://aiscamshield.codes/ \\(landing\\)         HTTP %{http_code}  %{time_total}s\\\\n\" -m 15 https://aiscamshield.codes/)",
+      "Bash(git -C /opt/ai-anti-spam-shield-crm add landing-page/css/style.css ai-anti-spam-shield-backend/public/landing-page/css/style.css)",
+      "Bash(git -C /opt/ai-anti-spam-shield-crm commit -m ' *)",
+      "Bash(git -C /opt/ai-anti-spam-shield-crm log --oneline -1)",
+      "Bash(git -C /opt/ai-anti-spam-shield-crm push origin main)",
+      "Bash(/usr/bin/curl -s -m 10 https://aiscamshield.codes/css/style.css)",
+      "Bash(rsync -a --delete /opt/ai-anti-spam-shield-crm/landing-page/ /opt/ai-anti-spam-shield-crm/ai-anti-spam-shield-backend/public/landing-page/)",
+      "Bash(/usr/bin/curl -s -m 10 https://aiscamshield.codes/)",
+      "Bash(/usr/bin/curl -s -m 10 https://aiscamshield.codes/js/main.js)"
     ]
   }
 }
