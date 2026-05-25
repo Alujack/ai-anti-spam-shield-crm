@@ -12,6 +12,10 @@ const logger = require('../utils/logger');
 // changes its phishing kit) isn't served from stale cache forever.
 const DEEP_SCAN_CACHE_TTL_SECONDS = 60 * 60;
 const DEEP_SCAN_TIMEOUT_MS = 60_000;
+// Bump this whenever the scoring logic changes (risk_scorer, phishing_detector,
+// fusion code below). Old cache keys are namespaced under the previous version
+// and naturally expire by TTL, so a code change can't be masked by stale results.
+const DEEP_SCAN_SCORER_VERSION = 'v2';
 
 /**
  * Phishing Detection Service
@@ -201,7 +205,7 @@ class PhishingService {
 
       // Cache lookup: SHA-256 of the URL is the key. Hash (vs raw URL) keeps
       // Redis keys a fixed length and avoids leaking the URL in key listings.
-      const cacheKey = `phish:deep:${crypto.createHash('sha256').update(url).digest('hex')}`;
+      const cacheKey = `phish:deep:${DEEP_SCAN_SCORER_VERSION}:${crypto.createHash('sha256').update(url).digest('hex')}`;
       let cached = null;
       try {
         cached = await redis.get(cacheKey);
