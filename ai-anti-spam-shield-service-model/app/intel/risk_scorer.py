@@ -14,6 +14,12 @@ from enum import Enum
 import re
 import logging
 
+try:
+    import tldextract
+    HAS_TLDEXTRACT = True
+except ImportError:
+    HAS_TLDEXTRACT = False
+
 logger = logging.getLogger(__name__)
 
 
@@ -115,6 +121,30 @@ class PhishingRiskScorer:
         Returns:
             Combined risk score
         """
+        # Whitelist short-circuit: if the URL's registered domain is a known
+        # legitimate brand (google.com, paypal.com, github.com, etc.), the
+        # static detector already returned 0% — but without this guard the
+        # ML/visual paths can still push the verdict to HIGH/CRITICAL (e.g.
+        # detecting a sign-in form on google.com). Honor the same trusted-domain
+        # list here so the two paths agree.
+        if self._is_trusted_domain(url):
+            return RiskScore(
+                total_score=0.0,
+                threat_level=ThreatLevel.NONE,
+                text_score=0.0,
+                url_score=0.0,
+                domain_score=0.0,
+                visual_score=0.0,
+                indicators=[{
+                    'source': 'trusted_domain',
+                    'description': 'URL resolves to a known legitimate brand domain',
+                    'severity': 'none',
+                    'score': 0,
+                }],
+                recommendation=self.RECOMMENDATIONS[ThreatLevel.NONE],
+                confidence=1.0,
+            )
+
         indicators = []
 
         # Calculate text score (from ML model)
@@ -199,6 +229,26 @@ class PhishingRiskScorer:
             recommendation=self.RECOMMENDATIONS[threat_level],
             confidence=confidence,
         )
+
+    def _is_trusted_domain(self, url: str) -> bool:
+        """Return True if the URL's registered domain is in PhishingDetector.TRUSTED_DOMAINS."""
+        if not HAS_TLDEXTRACT:
+            return False
+        try:
+            # Lazy import to avoid loading the detector's heavy deps at module import time.
+            from app.detectors.phishing_detector import PhishingDetector
+        except ImportError:
+            try:
+                from detectors.phishing_detector import PhishingDetector
+            except ImportError:
+                return False
+        try:
+            extracted = tldextract.extract(url)
+            registered = f"{extracted.domain}.{extracted.suffix}".lower()
+            return registered in PhishingDetector.TRUSTED_DOMAINS
+        except Exception as e:
+            logger.debug(f"Trusted-domain check failed for {url}: {e}")
+            return False
 
     def _analyze_url(self, url: str) -> tuple:
         """Analyze URL for phishing patterns"""
