@@ -294,16 +294,53 @@ class PhishingService {
       ) || 0;
       const deepPhishingProb = riskScore100 / 100;
 
+      // Boost confidence when the safe lab saw genuinely malicious behaviors.
+      // Without this, a brand-new evil URL with no WHOIS history but obvious
+      // bad runtime behavior would show "0% phishing confidence" while still
+      // being flagged — confusing UX.
+      // We look ahead at behaviors here so the floor applies to the displayed
+      // confidence too.
+      const _behaviors =
+        deepResp.data.details?.visual_analysis?.behavior_findings || [];
+      const _critCount = _behaviors.filter(
+        (f) => (f.severity || '').toLowerCase() === 'critical',
+      ).length;
+      const _highCount = _behaviors.filter(
+        (f) => (f.severity || '').toLowerCase() === 'high',
+      ).length;
+      let behaviorFloor = 0;
+      if (_critCount >= 2) behaviorFloor = 0.9;
+      else if (_critCount >= 1) behaviorFloor = 0.75;
+      else if (_highCount >= 2) behaviorFloor = 0.65;
+      else if (_highCount >= 1) behaviorFloor = 0.55;
+
       const rawPhishingConfidence = Math.max(
         staticConfidence,
         deepIsPhishing ? Math.max(0.6, deepPhishingProb) : 0,
+        behaviorFloor,
+      );
+
+      // Runtime behavior trumps everything. If the safe lab saw the page do
+      // something genuinely malicious (camera/mic request, cross-origin
+      // password POST, auto-download, miner script), force the verdict even
+      // when the risk_scorer didn't escalate (e.g. fresh URL with no WHOIS
+      // history, or a URL the static layer doesn't have patterns for).
+      const behaviorFindings =
+        deepResp.data.details?.visual_analysis?.behavior_findings || [];
+      const criticalBehaviors = behaviorFindings.filter(
+        (f) => (f.severity || '').toLowerCase() === 'critical',
+      );
+      const highBehaviors = behaviorFindings.filter(
+        (f) => (f.severity || '').toLowerCase() === 'high',
       );
 
       const isPhishing =
         Boolean(staticResp.data.is_phishing) ||
         deepIsPhishing ||
         ['MEDIUM', 'HIGH', 'CRITICAL'].includes(deepThreat) ||
-        rawPhishingConfidence >= DETECTION_THRESHOLD;
+        rawPhishingConfidence >= DETECTION_THRESHOLD ||
+        criticalBehaviors.length >= 1 ||
+        highBehaviors.length >= 2;
 
       // Calculate display confidence:
       // - If phishing: show phishing confidence (e.g., 85% phishing)
@@ -472,6 +509,15 @@ class PhishingService {
         dialogs: visual.dialogs || [],
         thirdPartyScriptOrigins: visual.third_party_script_origins || [],
         minerScripts: visual.miner_scripts || [],
+        // Advanced phishing-kit behaviors
+        serviceWorkerRegistrations: visual.service_worker_registrations || [],
+        pushSubscriptions: visual.push_subscriptions || [],
+        storageAccess: visual.storage_access || [],
+        beaconExfils: visual.beacon_exfils || [],
+        webrtcConnections: visual.webrtc_connections || [],
+        walletProbes: visual.wallet_probes || [],
+        fingerprinting: visual.fingerprinting || [],
+        antiDebug: visual.anti_debug || [],
         behaviorFindings: visual.behavior_findings || [],
       };
 

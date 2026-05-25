@@ -51,7 +51,11 @@
       "Bash(awk '/^  ml-service:/,/^  [a-z]/' docker-compose.yml)",
       "Bash(TRAIN_MODELS=false docker compose build ml-service)",
       "Bash(TRAIN_MODELS=false docker compose build ml-service backend)",
-      "Bash(tee /tmp/aishield-rebuild.log)"
+      "Bash(tee /tmp/aishield-rebuild.log)",
+      "Bash(TRAIN_MODELS=false docker compose build)",
+      "Bash(cloudflared --version)",
+      "Bash(cloudflared tunnel *)",
+      "Bash(tee /tmp/cloudflared.log)"
     ]
   }
 }

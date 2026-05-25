@@ -96,6 +96,14 @@ app.use(`/api/${config.apiVersion}`, routes);
 // Serve landing page static files
 const landingPagePath = path.join(__dirname, '..', 'public', 'landing-page');
 app.use(express.static(landingPagePath));
+
+// Safe-lab demo: an "evil twin" phishing simulation we can scan with the
+// safe-lab analyzer to validate every behavior detection (camera request,
+// clipboard hijack, cross-origin form POST, auto-download, etc.). Hosted
+// locally so we never have to fetch a real malicious URL.
+const safeLabDemoPath = path.join(__dirname, '..', 'public', 'safe-lab-demo');
+app.use('/safe-lab-demo', express.static(safeLabDemoPath));
+
 app.get('/', (req, res) => {
   res.sendFile(path.join(landingPagePath, 'index.html'));
 });

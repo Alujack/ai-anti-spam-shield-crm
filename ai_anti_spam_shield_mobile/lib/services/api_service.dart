@@ -1257,11 +1257,17 @@ class ApiService {
   // SCOPE 13: PLAYBOOK / INCIDENT RESPONSE
   // ============================================
 
+  // The playbook controller wraps its responses with the keys `playbooks`,
+  // `playbook`, `statistics` — not the standard `data` envelope used elsewhere
+  // in the API. We read both shapes and fall back to a safe empty default so
+  // a missing field never blows up as "Null is not a subtype of Map".
+
   Future<List<dynamic>> getPlaybooks() async {
     if (_isDemoMode) return [];
     try {
       final response = await _dio.get('/playbooks');
-      return response.data['data'] ?? [];
+      final body = response.data as Map<String, dynamic>? ?? {};
+      return (body['data'] ?? body['playbooks'] ?? []) as List<dynamic>;
     } catch (e) { rethrow; }
   }
 
@@ -1269,7 +1275,9 @@ class ApiService {
     if (_isDemoMode) return {};
     try {
       final response = await _dio.get('/playbooks/$id');
-      return response.data['data'];
+      final body = response.data as Map<String, dynamic>? ?? {};
+      final v = body['data'] ?? body['playbook'];
+      return v is Map<String, dynamic> ? v : <String, dynamic>{};
     } catch (e) { rethrow; }
   }
 
@@ -1279,7 +1287,9 @@ class ApiService {
       final response = await _dio.post('/playbooks/$id/execute', data: {
         'threat': {'id': threatId, 'threatType': threatType, 'severity': severity},
       });
-      return response.data['data'] ?? response.data;
+      final body = response.data as Map<String, dynamic>? ?? {};
+      final v = body['data'] ?? body;
+      return v is Map<String, dynamic> ? v : <String, dynamic>{};
     } catch (e) { rethrow; }
   }
 
@@ -1287,7 +1297,9 @@ class ApiService {
     if (_isDemoMode) return {'enabled': true};
     try {
       final response = await _dio.post('/playbooks/$id/toggle');
-      return response.data['data'];
+      final body = response.data as Map<String, dynamic>? ?? {};
+      final v = body['data'] ?? body['playbook'];
+      return v is Map<String, dynamic> ? v : <String, dynamic>{};
     } catch (e) { rethrow; }
   }
 
@@ -1295,7 +1307,9 @@ class ApiService {
     if (_isDemoMode) return {'totalPlaybooks': 0, 'totalExecutions': 0};
     try {
       final response = await _dio.get('/playbooks/executions/statistics');
-      return response.data['data'];
+      final body = response.data as Map<String, dynamic>? ?? {};
+      final v = body['data'] ?? body['statistics'];
+      return v is Map<String, dynamic> ? v : <String, dynamic>{};
     } catch (e) { rethrow; }
   }
 

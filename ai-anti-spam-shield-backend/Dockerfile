@@ -44,6 +44,10 @@ COPY docker-entrypoint.sh ./
 # Copy landing page
 COPY public/landing-page ./public/landing-page
 
+# Copy safe-lab demo (evil-twin phishing simulation used to validate the
+# safe-lab analyzer's behavior detection in a controlled, reproducible way)
+COPY public/safe-lab-demo ./public/safe-lab-demo
+
 # Make entrypoint executable
 RUN chmod +x docker-entrypoint.sh
 
