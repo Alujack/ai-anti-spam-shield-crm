@@ -45,7 +45,7 @@ declare -a CASES=(
   "https://www.google.com|false|NONE"
   "https://paypal.com|false|NONE"
   "https://github.com|false|NONE"
-  "http://paypa1-secure-login.com/verify|true|HIGH,CRITICAL"
+  "http://paypa1-secure-login.com/verify|true|MEDIUM,HIGH,CRITICAL"
   "https://newsbwebmail.weebly.com/|true|MEDIUM,HIGH,CRITICAL"
   "https://aiscamshield.codes/safe-lab-demo/|true|CRITICAL"
 )
@@ -98,16 +98,17 @@ done
 # ---- Step 3: cache warm-up confirmation ----
 print_header "Cache warm-up check (re-scan google.com — must be fast)"
 
-start=$(date +%s%3N)
-body=$(curl -sk --max-time 15 -X POST "$API/api/v1/phishing/scan-url" \
+# Portable timing: curl reports total time in seconds with sub-second precision.
+elapsed_s=$(curl -sk -o /dev/null -w '%{time_total}' --max-time 15 \
+  -X POST "$API/api/v1/phishing/scan-url" \
   -H 'Content-Type: application/json' \
   -d '{"url":"https://www.google.com"}')
-elapsed_ms=$(( $(date +%s%3N) - start ))
 
-if [[ "$elapsed_ms" -lt 1500 ]]; then
-  echo "${GREEN}PASS${RESET}  re-scan returned in ${elapsed_ms}ms (cache warm)"
+# Compare with awk to avoid bash float arithmetic.
+if awk -v t="$elapsed_s" 'BEGIN{exit !(t+0 < 1.5)}'; then
+  echo "${GREEN}PASS${RESET}  re-scan returned in ${elapsed_s}s (cache warm)"
 else
-  echo "${YELLOW}WARN${RESET}  re-scan took ${elapsed_ms}ms — cache may not be warm; live demo may be slow on first scan"
+  echo "${YELLOW}WARN${RESET}  re-scan took ${elapsed_s}s — cache may not be warm; live demo may be slow on first scan"
 fi
 
 # ---- Summary ----
