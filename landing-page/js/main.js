@@ -650,6 +650,7 @@ function openApp(preferredStore) {
   }, FALLBACK_TIMEOUT_MS);
 }
 
+let lastAppOpen = 0;
 document.querySelectorAll('[data-app-link]').forEach(el => {
   // Make sure the anchor has a real deep-link href so the browser treats it
   // as a user-initiated navigation (iOS Safari needs this for custom schemes).
@@ -661,7 +662,18 @@ document.querySelectorAll('[data-app-link]').forEach(el => {
     if (platform === 'desktop') {
       // On desktop the href can't open the app — take over and show the QR modal.
       e.preventDefault();
+      openApp(el.dataset.appLink);
+      return;
     }
+    // Mobile: debounce rapid re-taps so iOS Safari's anti-redirect-loop
+    // guard doesn't show the "repeatedly trying to open another
+    // application" prompt. First click navigates natively via href.
+    const now = Date.now();
+    if (now - lastAppOpen < 3000) {
+      e.preventDefault();
+      return;
+    }
+    lastAppOpen = now;
     openApp(el.dataset.appLink);
   });
 });

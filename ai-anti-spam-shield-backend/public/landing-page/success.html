@@ -319,12 +319,23 @@
       }
       modal.classList.add('show');
     }
+    let lastAppOpen = 0;
     document.getElementById('downloadAppBtn').addEventListener('click', (e) => {
-      if (detectPlatform() === 'desktop') {
+      const platform = detectPlatform();
+      if (platform === 'desktop') {
         e.preventDefault();
         showQrModal();
+        return;
       }
-      // On mobile, fall through and let href="aishield://open" do the work natively.
+      // Mobile: debounce rapid re-taps so iOS Safari's anti-redirect-loop
+      // guard doesn't show the "repeatedly trying to open another
+      // application" prompt. First click navigates natively via href.
+      const now = Date.now();
+      if (now - lastAppOpen < 3000) {
+        e.preventDefault();
+        return;
+      }
+      lastAppOpen = now;
     });
   </script>
 </body>
