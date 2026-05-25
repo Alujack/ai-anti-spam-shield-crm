@@ -18,6 +18,43 @@ const PROVIDER_PRESETS = {
 // Max emails to fetch per scan batch
 const MAX_EMAILS_PER_SCAN = 100;
 
+// Trusted sender domains: emails from these senders skip spam classification
+// because the model otherwise flags transactional/marketing emails from them.
+// Phishing detection still runs (a compromised trusted sender is still a threat).
+// Matched as suffix so "email.jobnet.com.kh" matches "jobnet.com.kh".
+const TRUSTED_SENDER_DOMAINS = [
+  // Code/dev platforms
+  'github.com', 'gitlab.com', 'bitbucket.org', 'atlassian.com',
+  // Cloud/infra
+  'aws.amazon.com', 'digitalocean.com', 'cloudflare.com', 'vercel.com', 'netlify.com',
+  // Big tech accounts
+  'google.com', 'accounts.google.com', 'youtube.com',
+  'microsoft.com', 'office.com', 'outlook.com',
+  'apple.com', 'icloud.com',
+  'meta.com', 'facebook.com', 'instagram.com', 'whatsapp.com',
+  'linkedin.com', 'x.com', 'twitter.com',
+  // Payments
+  'stripe.com', 'paypal.com', 'wise.com',
+  // Cambodia banks / fintech (recipient-region trusted)
+  'aba.bank', 'acledabank.com.kh', 'wing.com.kh',
+  // Job sites
+  'jobnet.com.kh', 'linkedin.com', 'indeed.com',
+  // Other common transactional senders
+  'pinterest.com', 'medium.com', 'notion.so', 'figma.com', 'slack.com',
+];
+
+function getSenderDomain(parsedFrom) {
+  const addr = parsedFrom?.value?.[0]?.address || '';
+  return (addr.split('@')[1] || '').toLowerCase();
+}
+
+function isTrustedSender(senderDomain) {
+  if (!senderDomain) return false;
+  return TRUSTED_SENDER_DOMAINS.some(
+    (d) => senderDomain === d || senderDomain.endsWith('.' + d)
+  );
+}
+
 // Default lookback period for first scan (7 days)
 const DEFAULT_LOOKBACK_DAYS = 7;
 
@@ -370,17 +407,24 @@ class EmailService {
     let phishingConfidence = 0;
     let threatLevel = 'NONE';
 
-    try {
-      // Spam detection
-      const spamResponse = await axios.post(
-        `${config.ai.serviceUrl}/predict`,
-        { message: contentToScan },
-        { timeout: 15000 }
-      );
-      spamConfidence = spamResponse.data.confidence || spamResponse.data.probability || 0;
-      isSpam = spamConfidence >= 0.80;
-    } catch (err) {
-      logger.warn('Spam AI service call failed for email', { uid, error: err.message });
+    const senderDomain = getSenderDomain(parsed.from);
+    const trusted = isTrustedSender(senderDomain);
+
+    if (trusted) {
+      logger.info('Skipping spam classification for trusted sender', { uid, senderDomain });
+    } else {
+      try {
+        // Spam detection
+        const spamResponse = await axios.post(
+          `${config.ai.serviceUrl}/predict`,
+          { message: contentToScan },
+          { timeout: 15000 }
+        );
+        spamConfidence = spamResponse.data.confidence || spamResponse.data.probability || 0;
+        isSpam = spamConfidence >= 0.80;
+      } catch (err) {
+        logger.warn('Spam AI service call failed for email', { uid, error: err.message });
+      }
     }
 
     try {
