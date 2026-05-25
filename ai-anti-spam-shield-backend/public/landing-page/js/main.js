@@ -587,6 +587,31 @@ function showAppToast(message) {
   showAppToast._t = setTimeout(() => toast.classList.remove('show'), 4000);
 }
 
+function showQrModal() {
+  let modal = document.getElementById('appQrModal');
+  if (!modal) {
+    const qrSrc = 'https://api.qrserver.com/v1/create-qr-code/?size=260x260&margin=8&data=' +
+      encodeURIComponent(APP_SCHEME_URL);
+    modal = document.createElement('div');
+    modal.id = 'appQrModal';
+    modal.className = 'app-qr-modal';
+    modal.innerHTML =
+      '<div class="app-qr-card" role="dialog" aria-modal="true" aria-labelledby="appQrTitle">' +
+        '<button class="app-qr-close" aria-label="Close">&times;</button>' +
+        '<h3 id="appQrTitle">Open on your phone</h3>' +
+        '<p>Scan this QR code with your phone\'s camera. If AI Scam Shield is installed, it will open the app.</p>' +
+        '<img alt="QR code linking to ' + APP_SCHEME_URL + '" src="' + qrSrc + '" width="220" height="220">' +
+        '<p class="app-qr-hint">App not yet on the App Store or Google Play — listings coming soon.</p>' +
+      '</div>';
+    document.body.appendChild(modal);
+    const close = () => modal.classList.remove('show');
+    modal.querySelector('.app-qr-close').addEventListener('click', close);
+    modal.addEventListener('click', (e) => { if (e.target === modal) close(); });
+    document.addEventListener('keydown', (e) => { if (e.key === 'Escape') close(); });
+  }
+  modal.classList.add('show');
+}
+
 function openApp(preferredStore) {
   const platform = detectPlatform();
 
@@ -595,42 +620,48 @@ function openApp(preferredStore) {
     if (url) {
       window.open(url, '_blank', 'noopener');
     } else {
-      showAppToast('AI Scam Shield is launching soon on the App Store and Google Play.');
+      // No store listing yet — show a QR modal so the user can scan with their phone.
+      showQrModal();
     }
     return;
   }
 
+  // Mobile path: native <a href="aishield://open"> handles the navigation
+  // (we don't preventDefault on mobile). We only schedule a fallback.
   const storeUrl = STORE_URLS[platform];
   const start = Date.now();
-  let fallbackTimer;
 
   const onVisibilityChange = () => {
     if (document.hidden) {
-      clearTimeout(fallbackTimer);
       document.removeEventListener('visibilitychange', onVisibilityChange);
     }
   };
   document.addEventListener('visibilitychange', onVisibilityChange);
 
-  // Attempt to open the app via custom URL scheme.
-  window.location.href = APP_SCHEME_URL;
-
-  fallbackTimer = setTimeout(() => {
+  setTimeout(() => {
     document.removeEventListener('visibilitychange', onVisibilityChange);
-    // If the page is still visible and not much time has passed, the app isn't installed.
     if (!document.hidden && Date.now() - start < FALLBACK_TIMEOUT_MS + 500) {
       if (storeUrl) {
         window.location.href = storeUrl;
       } else {
-        showAppToast("App not detected on this device. AI Scam Shield is launching soon on the App Store and Google Play.");
+        showAppToast("Looks like AI Scam Shield isn't installed on this device. Install it from the App Store or Google Play (coming soon).");
       }
     }
   }, FALLBACK_TIMEOUT_MS);
 }
 
 document.querySelectorAll('[data-app-link]').forEach(el => {
+  // Make sure the anchor has a real deep-link href so the browser treats it
+  // as a user-initiated navigation (iOS Safari needs this for custom schemes).
+  if (!el.getAttribute('href') || el.getAttribute('href') === '#') {
+    el.setAttribute('href', APP_SCHEME_URL);
+  }
   el.addEventListener('click', (e) => {
-    e.preventDefault();
+    const platform = detectPlatform();
+    if (platform === 'desktop') {
+      // On desktop the href can't open the app — take over and show the QR modal.
+      e.preventDefault();
+    }
     openApp(el.dataset.appLink);
   });
 });
