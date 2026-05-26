@@ -63,7 +63,8 @@
       "Bash(git -C /opt/ai-anti-spam-shield-crm diff --stat .claude/settings.json)",
       "Bash(git -C /opt/ai-anti-spam-shield-crm ls-files ai-anti-spam-shield-service-model/app/model/)",
       "Bash(tee /tmp/prod-build.log)",
-      "Bash(chmod +x /opt/ai-anti-spam-shield-crm/defense/preflight-demo.sh)"
+      "Bash(chmod +x /opt/ai-anti-spam-shield-crm/defense/preflight-demo.sh)",
+      "Bash(bash /opt/ai-anti-spam-shield-crm/defense/preflight-demo.sh)"
     ]
   }
 }
