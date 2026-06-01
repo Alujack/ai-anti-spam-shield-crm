@@ -1,0 +1,91 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1920" height="1080" viewBox="0 0 1920 1080" font-family="Segoe UI, Helvetica, Arial, sans-serif">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#0f172a"/>
+      <stop offset="1" stop-color="#1e293b"/>
+    </linearGradient>
+    <linearGradient id="gApp" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#38bdf8"/><stop offset="1" stop-color="#0ea5e9"/>
+    </linearGradient>
+    <linearGradient id="gApi" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#34d399"/><stop offset="1" stop-color="#10b981"/>
+    </linearGradient>
+    <linearGradient id="gMl" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#a78bfa"/><stop offset="1" stop-color="#8b5cf6"/>
+    </linearGradient>
+    <marker id="arrow" markerWidth="18" markerHeight="18" refX="6" refY="6" orient="auto" markerUnits="userSpaceOnUse">
+      <path d="M0,0 L12,6 L0,12 Z" fill="#e2e8f0"/>
+    </marker>
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="8" stdDeviation="12" flood-color="#000000" flood-opacity="0.45"/>
+    </filter>
+  </defs>
+
+  <rect width="1920" height="1080" fill="url(#bg)"/>
+
+  <!-- Title -->
+  <text x="100" y="100" fill="#f8fafc" font-size="54" font-weight="700">System Architecture</text>
+  <text x="100" y="148" fill="#94a3b8" font-size="28">Three-tier design &#183; client &#8594; backend &#8594; AI inference</text>
+  <rect x="1480" y="64" width="360" height="60" rx="30" fill="#1e293b" stroke="#334155" stroke-width="2"/>
+  <circle cx="1518" cy="94" r="9" fill="#34d399"/>
+  <text x="1540" y="103" fill="#cbd5e1" font-size="24" font-weight="600">AI Anti-Spam Shield CRM</text>
+
+  <!-- ============ TIER 1: MOBILE APP ============ -->
+  <g filter="url(#shadow)">
+    <rect x="360" y="210" width="1200" height="150" rx="22" fill="url(#gApp)"/>
+  </g>
+  <text x="960" y="278" fill="#082f49" font-size="40" font-weight="700" text-anchor="middle">Mobile App (Flutter)</text>
+  <text x="960" y="324" fill="#082f49" font-size="28" font-weight="500" text-anchor="middle">iOS  &#183;  Android  &#183;  Web  &#183;  Desktop</text>
+  <rect x="395" y="232" width="64" height="106" rx="10" fill="#082f49" fill-opacity="0.18"/>
+  <text x="427" y="293" fill="#082f49" font-size="34" text-anchor="middle">&#128241;</text>
+
+  <!-- connector 1 -->
+  <line x1="960" y1="360" x2="960" y2="450" stroke="#e2e8f0" stroke-width="5" marker-end="url(#arrow)"/>
+  <rect x="998" y="378" width="270" height="46" rx="23" fill="#0c4a6e" stroke="#38bdf8" stroke-width="2"/>
+  <text x="1133" y="409" fill="#bae6fd" font-size="24" font-weight="600" text-anchor="middle">REST API (JSON)</text>
+
+  <!-- ============ TIER 2: BACKEND API ============ -->
+  <g filter="url(#shadow)">
+    <rect x="360" y="468" width="1200" height="170" rx="22" fill="url(#gApi)"/>
+  </g>
+  <text x="960" y="528" fill="#052e16" font-size="40" font-weight="700" text-anchor="middle">Backend API (Node.js / Express)</text>
+  <g fill="#052e16" font-size="26" font-weight="500" text-anchor="middle">
+    <text x="600" y="585">Authentication</text>
+    <text x="960" y="585">Business Logic</text>
+    <text x="1340" y="585">Database Operations</text>
+    <text x="600" y="618" font-size="23" font-weight="400">JWT Auth</text>
+    <text x="960" y="618" font-size="23" font-weight="400">Scan History</text>
+    <text x="1340" y="618" font-size="23" font-weight="400">User Management</text>
+  </g>
+  <line x1="780" y1="558" x2="780" y2="628" stroke="#052e16" stroke-opacity="0.3" stroke-width="2"/>
+  <line x1="1150" y1="558" x2="1150" y2="628" stroke="#052e16" stroke-opacity="0.3" stroke-width="2"/>
+
+  <!-- connector 2 -->
+  <line x1="960" y1="638" x2="960" y2="728" stroke="#e2e8f0" stroke-width="5" marker-end="url(#arrow)"/>
+  <rect x="998" y="656" width="320" height="46" rx="23" fill="#064e3b" stroke="#34d399" stroke-width="2"/>
+  <text x="1158" y="687" fill="#a7f3d0" font-size="24" font-weight="600" text-anchor="middle">HTTP Internal API</text>
+
+  <!-- ============ TIER 3: AI/ML SERVICE ============ -->
+  <g filter="url(#shadow)">
+    <rect x="360" y="746" width="1200" height="250" rx="22" fill="url(#gMl)"/>
+  </g>
+  <text x="960" y="806" fill="#2e1065" font-size="40" font-weight="700" text-anchor="middle">AI / ML Service (Python / FastAPI)</text>
+
+  <!-- model cards -->
+  <g filter="url(#shadow)"><rect x="410" y="838" width="340" height="130" rx="16" fill="#f5f3ff"/></g>
+  <text x="580" y="892" fill="#5b21b6" font-size="30" font-weight="700" text-anchor="middle">SMS Spam</text>
+  <text x="580" y="930" fill="#6d28d9" font-size="26" text-anchor="middle">Classifier</text>
+
+  <g filter="url(#shadow)"><rect x="790" y="838" width="340" height="130" rx="16" fill="#f5f3ff"/></g>
+  <text x="960" y="892" fill="#5b21b6" font-size="30" font-weight="700" text-anchor="middle">Voice Scam</text>
+  <text x="960" y="930" fill="#6d28d9" font-size="26" text-anchor="middle">Classifier</text>
+
+  <g filter="url(#shadow)"><rect x="1170" y="838" width="340" height="130" rx="16" fill="#f5f3ff"/></g>
+  <text x="1340" y="892" fill="#5b21b6" font-size="30" font-weight="700" text-anchor="middle">Phishing Detection</text>
+  <text x="1340" y="930" fill="#6d28d9" font-size="26" text-anchor="middle">URL + Text</text>
+
+  <!-- side tier labels -->
+  <text x="330" y="292" fill="#38bdf8" font-size="22" font-weight="700" text-anchor="end">CLIENT</text>
+  <text x="330" y="560" fill="#34d399" font-size="22" font-weight="700" text-anchor="end">SERVER</text>
+  <text x="330" y="878" fill="#a78bfa" font-size="22" font-weight="700" text-anchor="end">INFERENCE</text>
+</svg>

@@ -71,3 +71,4 @@ certbot/
 *.sql
 *.sql.gz
 backups/
+video-edit/

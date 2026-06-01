@@ -63,7 +63,31 @@
       "Bash(git -C /opt/ai-anti-spam-shield-crm diff --stat .claude/settings.json)",
       "Bash(git -C /opt/ai-anti-spam-shield-crm ls-files ai-anti-spam-shield-service-model/app/model/)",
       "Bash(tee /tmp/prod-build.log)",
-      "Bash(chmod +x /opt/ai-anti-spam-shield-crm/defense/preflight-demo.sh)"
+      "Bash(chmod +x /opt/ai-anti-spam-shield-crm/defense/preflight-demo.sh)",
+      "Bash(ffmpeg -version)",
+      "Bash(ffprobe -v error -show_entries format=duration,size,bit_rate -show_entries stream=width,height,codec_name,r_frame_rate -of default=noprint_wrappers=0 \"/opt/ai-anti-spam-shield-crm/defense/defense-docs/ScreenRecording_05-26-2026 12-05-37_1.MP4\")",
+      "Bash(ffmpeg -loglevel error -i \"/opt/ai-anti-spam-shield-crm/defense/defense-docs/ScreenRecording_05-26-2026 12-05-37_1.MP4\" -vf \"fps=1/10,scale=300:-1\" -q:v 4 \"thumbs/thumb_%03d.jpg\")",
+      "Bash(ffmpeg -loglevel error -y -i thumb_%03d.jpg -vf \"tile=6x8\" -frames:v 1 ../contact_sheet.jpg)",
+      "Bash(mv \"03_dangerous_message_95pct.jpg\" \"03_dangerous_message_99pct.jpg\")",
+      "Bash(mv \"05_high_risk_url_74pct.jpg\" \"05_phishing_detected_90pct.jpg\")",
+      "Bash(ffprobe -v error -show_entries format=duration,size,bit_rate -of default=noprint_wrappers=1 AI_Shield_Demo_Trimmed.mp4)",
+      "Bash(ffmpeg -loglevel error -y -i v_%*.jpg -vf \"tile=6x4\" -frames:v 1 ../verify_sheet.jpg)",
+      "Bash(ffmpeg -loglevel error -y -i verify_sheet2.jpg -vf \"scale=1200:-1\" verify_sheet2_small.jpg)",
+      "Bash(chmod +x cut.sh)",
+      "Bash(./cut.sh)",
+      "Bash(ffmpeg -loglevel error -y -i ../AI_Shield_Demo_Trimmed.mp4 -vf \"fps=1/3,scale=240:-1\" \"f%03d.jpg\")",
+      "Bash(ffmpeg -loglevel error -y -i \"f%03d.jpg\" -vf \"tile=8x9\" -frames:v 1 ../output_check_v2.jpg)",
+      "Bash(ffmpeg -loglevel error -y -i ../output_check_v2.jpg -vf \"scale=1400:-1\" ../output_check_v2_small.jpg)",
+      "Bash(ffprobe -v error -show_entries format=duration,size -of default=noprint_wrappers=1 AI_Shield_Demo_Trimmed.mp4)",
+      "Bash(mkdir -p screenshots_v1_backup)",
+      "Bash(mv screenshots/*.jpg screenshots_v1_backup/)",
+      "Bash(chmod +x screenshots.sh)",
+      "Bash(./screenshots.sh)",
+      "Bash(command -v rsvg-convert)",
+      "Bash(command -v inkscape)",
+      "Bash(command -v cairosvg)",
+      "Bash(command -v magick)",
+      "Bash(command -v convert)"
     ]
   }
 }
